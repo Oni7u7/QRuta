@@ -14,6 +14,27 @@ export const TIPO_LABEL: Record<Tipo, string> = {
   verificacion: "Verificación",
 };
 
+// Componentes que el taller revisa en cada servicio (el orden fija el hash).
+export const CHECKLIST_ITEMS = [
+  { key: "frenos", label: "Frenos" },
+  { key: "llantas", label: "Llantas" },
+  { key: "luces", label: "Luces" },
+  { key: "direccion", label: "Dirección" },
+  { key: "suspension", label: "Suspensión" },
+  { key: "cinturones", label: "Cinturones" },
+] as const;
+export type ChecklistKey = (typeof CHECKLIST_ITEMS)[number]["key"];
+
+export const CHECK_VALORES = ["ok", "atencion", "falla"] as const;
+export type CheckValor = (typeof CHECK_VALORES)[number];
+export type Checklist = Record<ChecklistKey, CheckValor>;
+
+export const CHECK_LABEL: Record<CheckValor, string> = {
+  ok: "OK",
+  atencion: "Atención",
+  falla: "Falla",
+};
+
 // Segundos que dura cada token TOTP del QR.
 export const TOTP_STEP = 15;
 
