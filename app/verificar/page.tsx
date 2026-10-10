@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ChecklistView, IntegridadBadge, tieneFallas } from "@/components/checklist-view";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { TIPO_LABEL } from "@/lib/config";
@@ -94,7 +95,23 @@ function Resultado({ v }: { v: Verificacion }) {
 
       {(v.estado === "VIGENTE" || v.estado === "VENCIDO") && (
         <section className="mt-6" aria-labelledby="detalle">
-          <h2 id="detalle" className="text-sm font-semibold">
+          <IntegridadBadge {...v.integridad} />
+
+          {v.checklist && (
+            <div className="mt-6">
+              <h2 className="text-sm font-semibold">Componentes revisados</h2>
+              <div className="mt-2">
+                <ChecklistView checklist={v.checklist} />
+              </div>
+              {tieneFallas(v.checklist) && (
+                <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  El taller reportó fallas en este servicio.
+                </p>
+              )}
+            </div>
+          )}
+
+          <h2 id="detalle" className="mt-6 text-sm font-semibold">
             Detalle del último servicio
           </h2>
           <dl className="mt-2 divide-y divide-zinc-200 rounded-xl border border-zinc-200 px-4 text-sm dark:divide-zinc-800 dark:border-zinc-800">
@@ -116,7 +133,21 @@ function Resultado({ v }: { v: Verificacion }) {
                 </>
               }
             />
-            <Fila k="Firmado por" v={v.firmado_por} />
+            <Fila
+              k="Firmado por"
+              v={
+                <>
+                  {v.firmado_por}
+                  <span
+                    className={`block text-xs font-normal ${
+                      v.taller_verificado ? "text-teal-700 dark:text-teal-400" : "text-zinc-500 dark:text-zinc-400"
+                    }`}
+                  >
+                    {v.taller_verificado ? "Taller verificado (KYB)" : "Registro previo al KYB"}
+                  </span>
+                </>
+              }
+            />
             <div className="py-3">
               <dt className="text-zinc-500 dark:text-zinc-400">Hash SHA-256 del expediente</dt>
               <dd className="mt-1 font-mono text-xs break-all">{v.hash}</dd>

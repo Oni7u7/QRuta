@@ -3,8 +3,9 @@ import { Logo } from "./logo";
 
 const links = [
   { href: "/#como-funciona", label: "Cómo funciona" },
-  { href: "/#roadmap", label: "Roadmap" },
+  { href: "/#roadmap", label: "Roadmap", soloEscritorio: true },
   { href: "/verificar", label: "Verificar" },
+  { href: "/taller", label: "Talleres" },
 ];
 
 export function SiteHeader() {
@@ -14,7 +15,7 @@ export function SiteHeader() {
         <Logo />
         <ul className="flex items-center gap-4 text-sm text-zinc-600 sm:gap-6 dark:text-zinc-400">
           {links.map((l) => (
-            <li key={l.href}>
+            <li key={l.href} className={l.soloEscritorio ? "hidden sm:block" : undefined}>
               <Link href={l.href} className="hover:text-zinc-900 dark:hover:text-zinc-100">
                 {l.label}
               </Link>

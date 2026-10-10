@@ -7,7 +7,7 @@ const pasos = [
     n: "1",
     titulo: "Registro",
     texto:
-      "El taller captura placa, tipo de servicio, fecha y notas, y firma con su nombre. QRuta calcula el hash SHA-256 del expediente.",
+      "Un taller verificado (KYB) inicia sesión, captura el servicio, el kilometraje y un checklist de frenos, llantas, luces y más, y lo firma con su cuenta.",
   },
   {
     n: "2",
@@ -30,7 +30,10 @@ const roadmap = [
   },
   { titulo: "Pantalla ESP32", texto: "Un microcontrolador en la unidad genera el QR consumiendo la API pública." },
   { titulo: "Multi-firma", texto: "Taller y operador firman juntos cada expediente." },
-  { titulo: "Login por taller", texto: "Cuentas propias para cada taller autorizado." },
+  {
+    titulo: "Wallet del taller con passkey",
+    texto: "Cada taller firma con su propia wallet de Stellar y su huella, sin frases semilla (vía Accesly).",
+  },
   { titulo: "Soroban", texto: "Registro de talleres y expedientes en un contrato inteligente." },
   { titulo: "Mainnet", texto: "Anclaje en la red principal de Stellar." },
 ];
