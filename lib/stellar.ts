@@ -24,6 +24,13 @@ function isBadSeq(err: unknown) {
   return codes?.transaction === "tx_bad_seq";
 }
 
+// Resumen del error apto para logs: mensaje y códigos de Horizon, sin volcar el objeto completo.
+export function describeStellarError(err: unknown) {
+  const codes = (err as { response?: { data?: { extras?: { result_codes?: unknown } } } })?.response?.data?.extras?.result_codes;
+  const msg = err instanceof Error ? err.message : "error desconocido";
+  return codes ? `${msg} ${JSON.stringify(codes)}` : msg;
+}
+
 async function submitAnchor(kp: Keypair, hashHex: string) {
   const account = await server.loadAccount(kp.publicKey());
   const tx = new TransactionBuilder(account, {
