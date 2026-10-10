@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { cache } from "react";
+import { SESSION_COOKIE } from "./cookies";
 import { supabaseAdmin } from "./supabase";
 
 export type Taller = {
@@ -27,7 +28,7 @@ export async function supabaseSession() {
       getAll: () => cookieStore.getAll(),
       setAll(list) {
         try {
-          list.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          list.forEach(({ name, value, options }) => cookieStore.set(name, value, { ...options, ...SESSION_COOKIE }));
         } catch {
           // Llamado desde un Server Component: el middleware ya refresca las cookies.
         }
