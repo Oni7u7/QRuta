@@ -1,17 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { TIPOS, TIPO_LABEL, VIGENCIA_DIAS, type Tipo } from "@/lib/config";
+import {
+  CHECKLIST_ITEMS,
+  CHECK_LABEL,
+  CHECK_VALORES,
+  TIPOS,
+  TIPO_LABEL,
+  VIGENCIA_DIAS,
+  type CheckValor,
+  type Checklist,
+  type ChecklistKey,
+  type Tipo,
+} from "@/lib/config";
+import { ChecklistView } from "./checklist-view";
+import { formatFecha, inputClass } from "./ui";
 
 type Resultado = {
   placa: string;
   tipo: Tipo;
   fecha: string;
+  kilometraje: number;
+  checklist: Checklist;
   firmado_por: string;
   vigente_hasta: string;
   hash: string;
-  tx_hash: string;
   stellar_expert: string;
 };
 
@@ -22,38 +37,57 @@ function hoy() {
   return d.toISOString().slice(0, 10);
 }
 
-function formatFecha(iso: string) {
-  return new Date(iso).toLocaleDateString("es-MX", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-}
+const SEGMENTO: Record<CheckValor, string> = {
+  ok: "peer-checked:border-teal-600 peer-checked:bg-teal-600 peer-checked:text-white dark:peer-checked:border-teal-500 dark:peer-checked:bg-teal-500 dark:peer-checked:text-zinc-950",
+  atencion:
+    "peer-checked:border-amber-500 peer-checked:bg-amber-500 peer-checked:text-zinc-950 dark:peer-checked:border-amber-400 dark:peer-checked:bg-amber-400",
+  falla:
+    "peer-checked:border-red-600 peer-checked:bg-red-600 peer-checked:text-white dark:peer-checked:border-red-500 dark:peer-checked:bg-red-500 dark:peer-checked:text-zinc-950",
+};
 
-const inputClass =
-  "mt-1 block w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-base placeholder:text-zinc-400 focus:border-teal-600 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-teal-400";
-
-export function TallerForm() {
+export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
+  const router = useRouter();
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
-  // La página se prerenderiza: la fecha de hoy se calcula ya en el navegador.
+  const [checklist, setChecklist] = useState<Partial<Checklist>>({});
+  // La fecha de hoy se calcula en el navegador (huso horario del taller).
   const [fechaHoy, setFechaHoy] = useState("");
   useEffect(() => setFechaHoy(hoy()), []);
+
+  const hayFallas = Object.values(checklist).includes("falla");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    const km = String(form.get("kilometraje") ?? "").trim();
     setEnviando(true);
     setError(null);
     try {
       const res = await fetch("/api/expedientes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.fromEntries(form)),
+        body: JSON.stringify({
+          placa: form.get("placa"),
+          tipo: form.get("tipo"),
+          fecha: form.get("fecha"),
+          kilometraje: km === "" ? null : Number(km),
+          checklist,
+          notas: form.get("notas") ?? "",
+        }),
       });
       const json = await res.json().catch(() => null);
+      if (res.status === 401) {
+        router.push("/login?next=/taller");
+        return;
+      }
       if (!res.ok) {
         setError(json?.error ?? "No se pudo registrar el servicio");
         return;
       }
       setResultado(json);
+      setChecklist({});
+      router.refresh(); // actualiza "Tus últimos servicios"
     } catch {
       setError("Sin conexión con el servidor. Revisa tu red e intenta de nuevo.");
     } finally {
@@ -81,6 +115,7 @@ export function TallerForm() {
             ["Placa", resultado.placa],
             ["Servicio", TIPO_LABEL[resultado.tipo]],
             ["Fecha", formatFecha(resultado.fecha)],
+            ["Kilometraje", `${resultado.kilometraje.toLocaleString("es-MX")} km`],
             ["Vigente hasta", formatFecha(resultado.vigente_hasta)],
             ["Firmado por", resultado.firmado_por],
           ].map(([k, v]) => (
@@ -89,11 +124,14 @@ export function TallerForm() {
               <dd className="text-right font-medium">{v}</dd>
             </div>
           ))}
-          <div className="py-2.5">
-            <dt className="text-zinc-500 dark:text-zinc-400">Hash SHA-256</dt>
-            <dd className="mt-1 font-mono text-xs break-all">{resultado.hash}</dd>
-          </div>
         </dl>
+        <div className="mt-4">
+          <ChecklistView checklist={resultado.checklist} />
+        </div>
+        <div className="mt-4 text-sm">
+          <p className="text-zinc-500 dark:text-zinc-400">Hash SHA-256</p>
+          <p className="mt-1 font-mono text-xs break-all">{resultado.hash}</p>
+        </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Link
@@ -124,25 +162,41 @@ export function TallerForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-5">
-      <div>
-        <label htmlFor="placa" className="text-sm font-medium">
-          Placa de la unidad
-        </label>
-        <input
-          id="placa"
-          name="placa"
-          required
-          minLength={3}
-          maxLength={12}
-          autoComplete="off"
-          autoCapitalize="characters"
-          placeholder="ABC-123"
-          className={`${inputClass} uppercase`}
-        />
-      </div>
-
+    <form onSubmit={onSubmit} className="space-y-6">
       <div className="grid gap-5 sm:grid-cols-2">
+        <div>
+          <label htmlFor="placa" className="text-sm font-medium">
+            Placa de la unidad
+          </label>
+          <input
+            id="placa"
+            name="placa"
+            required
+            minLength={3}
+            maxLength={12}
+            autoComplete="off"
+            autoCapitalize="characters"
+            placeholder="ABC-123"
+            className={`${inputClass} uppercase`}
+          />
+        </div>
+        <div>
+          <label htmlFor="kilometraje" className="text-sm font-medium">
+            Kilometraje
+          </label>
+          <input
+            id="kilometraje"
+            name="kilometraje"
+            type="number"
+            inputMode="numeric"
+            required
+            min={0}
+            max={5000000}
+            step={1}
+            placeholder="185000"
+            className={inputClass}
+          />
+        </div>
         <div>
           <label htmlFor="tipo" className="text-sm font-medium">
             Tipo de servicio
@@ -159,36 +213,67 @@ export function TallerForm() {
           <label htmlFor="fecha" className="text-sm font-medium">
             Fecha del servicio
           </label>
-          <input id="fecha" name="fecha" type="date" required key={fechaHoy} defaultValue={fechaHoy} max={fechaHoy || undefined} className={inputClass} />
+          <input
+            id="fecha"
+            name="fecha"
+            type="date"
+            required
+            key={fechaHoy}
+            defaultValue={fechaHoy}
+            max={fechaHoy || undefined}
+            className={inputClass}
+          />
         </div>
       </div>
 
+      <fieldset>
+        <legend className="text-sm font-medium">Checklist de revisión</legend>
+        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Marca el estado de cada componente.</p>
+        <div className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          {CHECKLIST_ITEMS.map(({ key, label }) => (
+            <div key={key} role="radiogroup" aria-label={label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+              <span className="text-sm">{label}</span>
+              <div className="flex gap-1.5">
+                {CHECK_VALORES.map((v) => (
+                  <label key={v} className="cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`check-${key}`}
+                      value={v}
+                      required
+                      checked={checklist[key as ChecklistKey] === v}
+                      onChange={() => setChecklist((c) => ({ ...c, [key]: v }))}
+                      className="peer sr-only"
+                    />
+                    <span
+                      className={`inline-flex h-9 min-w-[4.5rem] items-center justify-center rounded-lg border border-zinc-300 px-2 text-xs font-medium text-zinc-600 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-teal-600 dark:border-zinc-700 dark:text-zinc-300 ${SEGMENTO[v]}`}
+                    >
+                      {CHECK_LABEL[v]}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        {hayFallas && (
+          <p role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+            Hay componentes con falla. Quedarán visibles en la verificación pública; registra un servicio correctivo cuando se
+            reparen.
+          </p>
+        )}
+      </fieldset>
+
       <div>
         <label htmlFor="notas" className="text-sm font-medium">
-          Notas <span className="font-normal text-zinc-500 dark:text-zinc-400">(opcional)</span>
+          Notas <span className="font-normal text-zinc-500 dark:text-zinc-400">(opcional, solo visibles para talleres)</span>
         </label>
         <textarea
           id="notas"
           name="notas"
           rows={3}
           maxLength={1000}
-          placeholder="Cambio de aceite y filtros, revisión de frenos…"
-          className={inputClass}
-        />
-      </div>
-
-      <div>
-        <label htmlFor="firmado_por" className="text-sm font-medium">
-          Taller que firma
-        </label>
-        <input
-          id="firmado_por"
-          name="firmado_por"
-          required
-          minLength={2}
-          maxLength={80}
-          autoComplete="organization"
-          placeholder="Taller Hernández"
+          placeholder="Cambio de aceite y filtros, balatas delanteras al 40 %…"
           className={inputClass}
         />
       </div>
@@ -198,6 +283,12 @@ export function TallerForm() {
           {error}
         </p>
       )}
+
+      <div className="rounded-lg bg-zinc-50 px-4 py-3 text-sm dark:bg-zinc-900">
+        <span className="text-zinc-500 dark:text-zinc-400">Firma como </span>
+        <span className="font-medium">{tallerNombre}</span>
+        <span className="ml-1 text-teal-700 dark:text-teal-400">· taller verificado</span>
+      </div>
 
       <button
         type="submit"
@@ -210,7 +301,7 @@ export function TallerForm() {
         {enviando ? "Anclando en Stellar…" : "Firmar y registrar"}
       </button>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Al firmar, el hash del expediente se publica en Stellar testnet y ya no se puede modificar.
+        Al firmar, el hash del expediente (incluido el checklist) se publica en Stellar testnet y ya no se puede modificar.
       </p>
     </form>
   );
