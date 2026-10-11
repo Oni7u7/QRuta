@@ -1,0 +1,5 @@
+# Nunca subir claves locales: en Vercel las variables se configuran con `vercel env`.
+.env*
+!.env.example
+node_modules
+.next
