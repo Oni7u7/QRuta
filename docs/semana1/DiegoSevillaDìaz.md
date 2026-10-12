@@ -30,3 +30,5 @@ Lo sufren padres que le dan dinero a sus hijos estudiantes, pequeñas empresas q
 ## ¿Por qué creo que blockchain podría aportar?
 
 > Hipótesis personal, no certeza, apoyada en al menos un criterio de la Sesión 1.
+
+Creo que aplica el criterio de **eliminar un intermediario que concentra la confianza**: las reglas de gasto (monto máximo, comercio, fecha de vencimiento) podrían vivir en un contrato inteligente en Stellar (Soroban) que ni el banco ni la app pueden cambiar a escondidas, y el dinero solo se libera si se cumple la regla. Existe un precedente verificable (Kura) e infraestructura real para la entrada y salida a pesos (Accesly / Pollar). Lo que me falta resolver es qué nos diferencia de lo que ya hace Kura.
