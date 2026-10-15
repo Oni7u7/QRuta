@@ -40,6 +40,7 @@ export const TOTP_STEP = 15;
 
 export const STELLAR_HORIZON_URL = "https://horizon-testnet.stellar.org";
 export const SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+export const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
 // ID del contrato qruta-registry (C...). Solo se lee en el servidor.
 export function contractId() {
