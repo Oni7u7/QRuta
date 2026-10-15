@@ -3,3 +3,6 @@
 !.env.example
 node_modules
 .next
+
+# El contrato se despliega aparte con la Stellar CLI; Vercel no lo necesita
+contracts

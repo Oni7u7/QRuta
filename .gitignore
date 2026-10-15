@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .directory
+
+# Rust / Soroban (compilación del contrato)
+/contracts/target
+contracts/**/test_snapshots/
