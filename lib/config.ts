@@ -39,6 +39,18 @@ export const CHECK_LABEL: Record<CheckValor, string> = {
 export const TOTP_STEP = 15;
 
 export const STELLAR_HORIZON_URL = "https://horizon-testnet.stellar.org";
+export const SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
+
+// ID del contrato qruta-registry (C...). Solo se lee en el servidor.
+export function contractId() {
+  const id = process.env.QRUTA_CONTRACT_ID;
+  if (!id) throw new Error("Falta QRUTA_CONTRACT_ID");
+  return id;
+}
+
+export function stellarExpertContractUrl(id: string) {
+  return `https://stellar.expert/explorer/testnet/contract/${id}`;
+}
 
 export function stellarExpertTxUrl(txHash: string) {
   return `https://stellar.expert/explorer/testnet/tx/${txHash}`;
