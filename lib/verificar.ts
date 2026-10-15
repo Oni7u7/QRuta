@@ -1,6 +1,7 @@
 import { stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
 import { recomputeHash } from "./hash";
 import { placaSchema } from "./placa";
+import { expedienteOnChain } from "./soroban";
 import { fetchAnchoredHash } from "./stellar";
 import { supabaseAdmin } from "./supabase";
 import { isValidToken } from "./totp";
@@ -9,7 +10,8 @@ export type Estado = "NO_REGISTRADA" | "EXPIRADO" | "SIN_MANTENIMIENTO" | "VENCI
 
 // Resultado de comprobar que el expediente no fue alterado:
 // datos -> el hash recalculado con los datos guardados coincide con el hash registrado.
-// stellar -> el hash registrado es el que está en el memo de la transacción (null: Stellar no respondió a tiempo).
+// stellar -> el hash registrado está anclado en Stellar: en el memo de la transacción de QRuta (anclaje "memo")
+//            o en el contrato, firmado por la wallet del taller (anclaje "soroban"). null: Stellar no respondió a tiempo.
 export type Integridad = { datos: boolean; stellar: boolean | null };
 
 export type DetalleExpediente = {
@@ -43,8 +45,26 @@ type ExpedienteRow = {
   hash: string;
   hash_version: number;
   tx_hash: string;
+  anclaje: "memo" | "soroban";
+  firmado_con: string | null;
   talleres: { estado: string } | null;
 };
+
+const TIMEOUT_STELLAR_MS = 2500;
+
+// Comprueba en el contrato que el hash esté registrado para esta placa y por la wallet que firmó.
+async function ancladoEnContrato(placa: string, e: ExpedienteRow): Promise<boolean | null> {
+  try {
+    const reg = await Promise.race([
+      expedienteOnChain(e.hash),
+      new Promise<"timeout">((r) => setTimeout(() => r("timeout"), TIMEOUT_STELLAR_MS)),
+    ]);
+    if (reg === "timeout") return null;
+    return !!reg && reg.placa === placa && reg.taller === e.firmado_con;
+  } catch {
+    return null;
+  }
+}
 
 export async function comprobarIntegridad(placa: string, e: ExpedienteRow): Promise<Integridad> {
   const recalculado = recomputeHash(e.hash_version, {
@@ -57,6 +77,9 @@ export async function comprobarIntegridad(placa: string, e: ExpedienteRow): Prom
     checklist: e.checklist,
     taller_id: e.taller_id,
   });
+  if (e.anclaje === "soroban") {
+    return { datos: recalculado === e.hash, stellar: await ancladoEnContrato(placa, e) };
+  }
   const anclado = await fetchAnchoredHash(e.tx_hash);
   return {
     datos: recalculado === e.hash,
@@ -65,7 +88,7 @@ export async function comprobarIntegridad(placa: string, e: ExpedienteRow): Prom
 }
 
 export const EXPEDIENTE_COLUMNS =
-  "tipo, fecha, vigente_hasta, kilometraje, checklist, notas, firmado_por, taller_id, hash, hash_version, tx_hash, talleres(estado)";
+  "tipo, fecha, vigente_hasta, kilometraje, checklist, notas, firmado_por, taller_id, hash, hash_version, tx_hash, anclaje, firmado_con, talleres(estado)";
 
 // Decide el estado de una unidad a partir de la placa y el token del QR.
 // Orden: placa registrada -> token válido -> último servicio -> vigencia.
