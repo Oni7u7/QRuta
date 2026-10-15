@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { TallerForm } from "@/components/taller-form";
+import { WalletPanel } from "@/components/wallet-panel";
 import { formatFecha } from "@/components/ui";
 import { getTaller } from "@/lib/auth";
 import { TIPO_LABEL } from "@/lib/config";
 import { ultimosDelTaller } from "@/lib/historial";
+import { esAprobadoOnChain } from "@/lib/soroban";
 
 export const metadata: Metadata = {
   title: "Registrar servicio · QRuta",
@@ -14,16 +16,27 @@ export default async function TallerPage() {
   // El layout muestra el aviso de acceso; aquí solo evitamos consultar datos sin permiso.
   const taller = await getTaller();
   if (taller?.estado !== "aprobado") return null;
-  const recientes = await ultimosDelTaller(taller.id);
+  const wallet = taller.stellar_address;
+  const [recientes, aprobada] = await Promise.all([
+    ultimosDelTaller(taller.id),
+    // La aprobación para firmar vive en el contrato (KYB on-chain). null: Stellar no respondió.
+    wallet ? esAprobadoOnChain(wallet).catch(() => null) : Promise.resolve(false),
+  ]);
 
   return (
     <>
       <h1 className="text-3xl font-semibold tracking-tight">Registrar servicio</h1>
       <p className="mt-2 mb-8 text-zinc-600 dark:text-zinc-400">
-        Captura el mantenimiento de la unidad. Al firmar, el expediente se ancla en Stellar y queda verificable con el QR de la
-        unidad.
+        Captura el mantenimiento de la unidad y fírmalo con tu wallet. El expediente queda en el contrato de QRuta en Stellar y
+        es verificable con el QR de la unidad.
       </p>
-      <TallerForm tallerNombre={taller.nombre} />
+      {!wallet ? (
+        <WalletPanel estado="sin-wallet" />
+      ) : aprobada === true ? (
+        <TallerForm tallerNombre={taller.nombre} wallet={wallet} />
+      ) : (
+        <WalletPanel estado={aprobada === false ? "pendiente" : "desconocido"} wallet={wallet} />
+      )}
 
       <section className="mt-14" aria-labelledby="recientes">
         <h2 id="recientes" className="text-lg font-semibold">

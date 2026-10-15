@@ -15,6 +15,7 @@ import {
   type ChecklistKey,
   type Tipo,
 } from "@/lib/config";
+import { FreighterError, abreviar, firmarConFreighter } from "@/lib/freighter";
 import { ChecklistView } from "./checklist-view";
 import { formatFecha, inputClass } from "./ui";
 
@@ -25,9 +26,19 @@ type Resultado = {
   kilometraje: number;
   checklist: Checklist;
   firmado_por: string;
+  firmado_con: string;
   vigente_hasta: string;
   hash: string;
   stellar_expert: string;
+  contrato: string;
+};
+
+type Paso = "preparando" | "firmando" | "registrando";
+
+const TEXTO_PASO: Record<Paso, string> = {
+  preparando: "Preparando el registro…",
+  firmando: "Firma en Freighter…",
+  registrando: "Registrando en Stellar…",
 };
 
 // Fecha local de hoy en formato YYYY-MM-DD.
@@ -45,9 +56,11 @@ const SEGMENTO: Record<CheckValor, string> = {
     "peer-checked:border-red-600 peer-checked:bg-red-600 peer-checked:text-white dark:peer-checked:border-red-500 dark:peer-checked:bg-red-500 dark:peer-checked:text-zinc-950",
 };
 
-export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
+// Formulario del taller con wallet aprobada. El registro va en dos pasos:
+// QRuta prepara la transacción, el taller la firma en Freighter y QRuta la envía al contrato.
+export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wallet: string }) {
   const router = useRouter();
-  const [enviando, setEnviando] = useState(false);
+  const [paso, setPaso] = useState<Paso | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [checklist, setChecklist] = useState<Partial<Checklist>>({});
@@ -61,37 +74,43 @@ export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const km = String(form.get("kilometraje") ?? "").trim();
-    setEnviando(true);
+    // Los mismos datos van a "preparar" y a "registrar": el servidor recalcula el hash en ambos.
+    const datos = {
+      placa: form.get("placa"),
+      tipo: form.get("tipo"),
+      fecha: form.get("fecha"),
+      kilometraje: km === "" ? null : Number(km),
+      checklist,
+      notas: form.get("notas") ?? "",
+    };
+    const post = async (url: string, body: unknown) => {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      return { res, json: await res.json().catch(() => null) };
+    };
     setError(null);
     try {
-      const res = await fetch("/api/expedientes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          placa: form.get("placa"),
-          tipo: form.get("tipo"),
-          fecha: form.get("fecha"),
-          kilometraje: km === "" ? null : Number(km),
-          checklist,
-          notas: form.get("notas") ?? "",
-        }),
-      });
-      const json = await res.json().catch(() => null);
-      if (res.status === 401) {
-        router.push("/login?next=/taller");
-        return;
-      }
-      if (!res.ok) {
-        setError(json?.error ?? "No se pudo registrar el servicio");
-        return;
-      }
-      setResultado(json);
+      // 1. QRuta arma y simula la llamada al contrato.
+      setPaso("preparando");
+      const prep = await post("/api/expedientes/preparar", datos);
+      if (prep.res.status === 401) return router.push("/login?next=/taller");
+      if (!prep.res.ok) return setError(prep.json?.error ?? "No se pudo preparar el registro");
+
+      // 2. El taller firma en Freighter (la llave nunca sale de la extensión).
+      setPaso("firmando");
+      const signedXdr = await firmarConFreighter(prep.json.xdr, wallet);
+
+      // 3. QRuta comprueba la firma, la envía al contrato y guarda el expediente.
+      setPaso("registrando");
+      const reg = await post("/api/expedientes", { ...datos, signedXdr });
+      if (reg.res.status === 401) return router.push("/login?next=/taller");
+      if (!reg.res.ok) return setError(reg.json?.error ?? "No se pudo registrar el servicio");
+      setResultado(reg.json);
       setChecklist({});
       router.refresh(); // actualiza "Tus últimos servicios"
-    } catch {
-      setError("Sin conexión con el servidor. Revisa tu red e intenta de nuevo.");
+    } catch (err) {
+      setError(err instanceof FreighterError ? err.message : "Sin conexión con el servidor. Revisa tu red e intenta de nuevo.");
     } finally {
-      setEnviando(false);
+      setPaso(null);
     }
   }
 
@@ -105,8 +124,8 @@ export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
             </svg>
           </span>
           <div>
-            <h2 className="font-semibold">Servicio registrado y anclado</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">La transacción ya está en Stellar testnet.</p>
+            <h2 className="font-semibold">Servicio firmado y registrado</h2>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">Quedó en el contrato de QRuta en Stellar testnet.</p>
           </div>
         </div>
 
@@ -118,6 +137,7 @@ export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
             ["Kilometraje", `${resultado.kilometraje.toLocaleString("es-MX")} km`],
             ["Vigente hasta", formatFecha(resultado.vigente_hasta)],
             ["Firmado por", resultado.firmado_por],
+            ["Wallet que firmó", abreviar(resultado.firmado_con)],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 py-2.5">
               <dt className="text-zinc-500 dark:text-zinc-400">{k}</dt>
@@ -146,10 +166,18 @@ export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
             rel="noopener noreferrer"
             className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-5 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
           >
-            Ver en Stellar Expert
-            <span className="sr-only"> (abre en otra pestaña)</span>
+            Ver transacción
+            <span className="sr-only"> en Stellar Expert (abre en otra pestaña)</span>
           </a>
         </div>
+        <a
+          href={resultado.contrato}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-block text-sm text-zinc-500 underline-offset-4 hover:underline dark:text-zinc-400"
+        >
+          Ver el contrato de QRuta en Stellar Expert<span className="sr-only"> (abre en otra pestaña)</span>
+        </a>
         <button
           type="button"
           onClick={() => setResultado(null)}
@@ -287,21 +315,25 @@ export function TallerForm({ tallerNombre }: { tallerNombre: string }) {
       <div className="rounded-lg bg-zinc-50 px-4 py-3 text-sm dark:bg-zinc-900">
         <span className="text-zinc-500 dark:text-zinc-400">Firma como </span>
         <span className="font-medium">{tallerNombre}</span>
-        <span className="ml-1 text-teal-700 dark:text-teal-400">· taller verificado</span>
+        <span className="text-zinc-500 dark:text-zinc-400"> con tu wallet </span>
+        <span className="font-mono font-medium">{abreviar(wallet)}</span>
+        <span className="ml-1 text-teal-700 dark:text-teal-400">· aprobada</span>
       </div>
 
       <button
         type="submit"
-        disabled={enviando}
+        disabled={paso !== null}
         className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70 sm:w-auto dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
       >
-        {enviando && (
+        {paso && (
           <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
         )}
-        {enviando ? "Anclando en Stellar…" : "Firmar y registrar"}
+        {paso ? TEXTO_PASO[paso] : "Firmar y registrar"}
       </button>
-      <p className="text-xs text-zinc-500 dark:text-zinc-400">
-        Al firmar, el hash del expediente (incluido el checklist) se publica en Stellar testnet y ya no se puede modificar.
+      <p role="status" aria-live="polite" className="text-xs text-zinc-500 dark:text-zinc-400">
+        {paso === "firmando"
+          ? "Revisa la ventana de Freighter y aprueba la transacción."
+          : "Freighter te pedirá firmar. El hash del expediente (incluido el checklist) quedará en el contrato de QRuta y ya no se podrá modificar."}
       </p>
     </form>
   );
