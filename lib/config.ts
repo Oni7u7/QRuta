@@ -35,6 +35,9 @@ export const CHECK_LABEL: Record<CheckValor, string> = {
   falla: "Falla",
 };
 
+// Documento de la solicitud de alta. Vercel rechaza peticiones de más de 4.5 MB: el PDF se limita a 4 MB.
+export const PDF_MAX_BYTES = 4 * 1024 * 1024;
+
 // Segundos que dura cada token TOTP del QR.
 export const TOTP_STEP = 15;
 
