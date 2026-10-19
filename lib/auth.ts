@@ -66,16 +66,48 @@ export async function tallerAutorizado(opts: { conWallet: boolean }) {
   return { taller } as const;
 }
 
-// Taller de la sesión actual (o null si no hay sesión o el usuario no es un taller).
-// cache(): layout y página comparten la misma consulta dentro de una petición.
-export const getTaller = cache(async (): Promise<Taller | null> => {
+// Usuario de la sesión actual (o null). cache(): una sola consulta a Supabase por petición.
+const usuarioSesion = cache(async () => {
   const sb = await supabaseSession();
   const {
     data: { user },
     error: authError,
   } = await sb.auth.getUser();
-  // Un fallo de red con Supabase no significa "sin sesión": no mandamos al taller a iniciar sesión.
+  // Un fallo de red con Supabase no significa "sin sesión": no mandamos al usuario a iniciar sesión.
   if (authError && isAuthRetryableFetchError(authError)) throw new SesionNoVerificable();
+  return user;
+});
+
+export type Admin = { id: string; nombre: string };
+
+// Administrador de la sesión actual (o null si el usuario no es admin).
+export const getAdmin = cache(async (): Promise<Admin | null> => {
+  const user = await usuarioSesion();
+  if (!user) return null;
+  const { data, error } = await supabaseAdmin().from("admins").select("id, nombre").eq("id", user.id).maybeSingle();
+  if (error) throw new Error(`Error al consultar el administrador: ${error.message}`);
+  return (data as Admin | null) ?? null;
+});
+
+// Para las rutas de la API de /admin: exige sesión de administrador.
+export async function adminAutorizado() {
+  let admin: Admin | null;
+  try {
+    admin = await getAdmin();
+  } catch (err) {
+    if (err instanceof SesionNoVerificable) {
+      return { error: "No se pudo verificar tu sesión. Intenta de nuevo en unos segundos.", status: 503 } as const;
+    }
+    throw err;
+  }
+  if (!admin) return { error: "Solo los administradores de QRuta pueden hacer esto", status: 403 } as const;
+  return { admin } as const;
+}
+
+// Taller de la sesión actual (o null si no hay sesión o el usuario no es un taller).
+// cache(): layout y página comparten la misma consulta dentro de una petición.
+export const getTaller = cache(async (): Promise<Taller | null> => {
+  const user = await usuarioSesion();
   if (!user) return null;
 
   const { data, error } = await supabaseAdmin()

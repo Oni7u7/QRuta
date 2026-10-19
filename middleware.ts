@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE } from "./lib/cookies";
 
-// Refresca la sesión de Supabase y protege el área de talleres.
+// Refresca la sesión de Supabase y protege las áreas de talleres y de administración.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -26,7 +26,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
   const { pathname, search } = request.nextUrl;
 
-  if (!user && pathname.startsWith("/taller")) {
+  if (!user && ["/taller", "/admin", "/cuenta"].some((r) => pathname.startsWith(r))) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = `?next=${encodeURIComponent(pathname + search)}`;
@@ -42,5 +42,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/taller/:path*", "/login", "/api/expedientes"],
+  matcher: ["/taller/:path*", "/admin/:path*", "/cuenta/:path*", "/login", "/api/expedientes"],
 };
