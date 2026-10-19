@@ -1,14 +1,17 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { logout } from "@/app/login/actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { getTaller } from "@/lib/auth";
+import { getAdmin, getTaller } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 // El middleware ya exige sesión; aquí se exige además un taller con KYB aprobado.
 export default async function TallerLayout({ children }: { children: React.ReactNode }) {
   const taller = await getTaller();
+  // Un administrador no es un taller: su lugar es /admin.
+  if (!taller && (await getAdmin())) redirect("/admin");
 
   return (
     <>

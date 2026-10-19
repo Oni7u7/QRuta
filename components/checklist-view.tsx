@@ -30,14 +30,16 @@ export function tieneFallas(checklist: Checklist | null) {
   return !!checklist && Object.values(checklist).includes("falla");
 }
 
-export function IntegridadBadge({ datos, stellar }: { datos: boolean; stellar: boolean | null }) {
+export function IntegridadBadge({ datos, stellar, contrato = false }: { datos: boolean; stellar: boolean | null; contrato?: boolean }) {
   if (datos && stellar) {
     return (
       <p className="flex items-start gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800 dark:bg-teal-950 dark:text-teal-300">
         <span aria-hidden="true">✓</span>
         <span>
-          <strong className="font-semibold">Integridad verificada en Stellar.</strong> Los datos coinciden con el hash anclado en la
-          transacción.
+          <strong className="font-semibold">Integridad verificada en Stellar.</strong>{" "}
+          {contrato
+            ? "El taller firmó este expediente con su wallet y el contrato de QRuta lo tiene registrado con estos mismos datos."
+            : "Los datos coinciden con el hash anclado en la transacción."}
         </span>
       </p>
     );

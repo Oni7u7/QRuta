@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ChecklistView, IntegridadBadge, tieneFallas } from "@/components/checklist-view";
 import { SiteFooter } from "@/components/site-footer";
+import { abreviar } from "@/components/ui";
 import { SiteHeader } from "@/components/site-header";
 import { TIPO_LABEL } from "@/lib/config";
 import { verificar, type Estado, type Verificacion } from "@/lib/verificar";
@@ -95,7 +96,7 @@ function Resultado({ v }: { v: Verificacion }) {
 
       {(v.estado === "VIGENTE" || v.estado === "VENCIDO") && (
         <section className="mt-6" aria-labelledby="detalle">
-          <IntegridadBadge {...v.integridad} />
+          <IntegridadBadge {...v.integridad} contrato={v.firma === "contrato"} />
 
           {v.checklist && (
             <div className="mt-6">
@@ -140,14 +141,24 @@ function Resultado({ v }: { v: Verificacion }) {
                   {v.firmado_por}
                   <span
                     className={`block text-xs font-normal ${
-                      v.taller_verificado ? "text-teal-700 dark:text-teal-400" : "text-zinc-500 dark:text-zinc-400"
+                      v.firma === "previo" ? "text-zinc-500 dark:text-zinc-400" : "text-teal-700 dark:text-teal-400"
                     }`}
                   >
-                    {v.taller_verificado ? "Taller verificado (KYB)" : "Registro previo al KYB"}
+                    {FIRMA_TEXTO[v.firma]}
                   </span>
                 </>
               }
             />
+            {v.firmado_con && (
+              <Fila
+                k="Wallet que firmó"
+                v={
+                  <span className="font-mono" title={v.firmado_con}>
+                    {abreviar(v.firmado_con)}
+                  </span>
+                }
+              />
+            )}
             <div className="py-3">
               <dt className="text-zinc-500 dark:text-zinc-400">Hash SHA-256 del expediente</dt>
               <dd className="mt-1 font-mono text-xs break-all">{v.hash}</dd>
@@ -166,9 +177,20 @@ function Resultado({ v }: { v: Verificacion }) {
             </svg>
             <span className="sr-only">(abre en otra pestaña)</span>
           </a>
+          {v.contrato && (
+            <a
+              href={v.contrato}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 block text-center text-sm text-zinc-600 underline-offset-4 hover:underline dark:text-zinc-400"
+            >
+              Ver el contrato de QRuta en Stellar Expert<span className="sr-only"> (abre en otra pestaña)</span>
+            </a>
+          )}
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-            El hash está publicado en el memo de la transacción en Stellar testnet. Si el expediente se alterara, el hash ya no
-            coincidiría.
+            {v.firma === "contrato"
+              ? "El taller firmó este expediente con su wallet y el contrato de QRuta en Stellar testnet guarda su hash. Si el expediente se alterara, el hash ya no coincidiría."
+              : "El hash está publicado en el memo de la transacción en Stellar testnet. Si el expediente se alterara, el hash ya no coincidiría."}
           </p>
         </section>
       )}
@@ -176,10 +198,16 @@ function Resultado({ v }: { v: Verificacion }) {
   );
 }
 
+const FIRMA_TEXTO = {
+  contrato: "Firmado con su wallet · aprobada en el contrato",
+  kyb: "Taller verificado (KYB)",
+  previo: "Registro previo al KYB",
+} as const;
+
 function Fila({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex justify-between gap-4 py-3">
-      <dt className="text-zinc-500 dark:text-zinc-400">{k}</dt>
+      <dt className="shrink-0 text-zinc-500 dark:text-zinc-400">{k}</dt>
       <dd className="text-right font-medium">{v}</dd>
     </div>
   );

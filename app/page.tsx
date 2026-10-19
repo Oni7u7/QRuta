@@ -7,13 +7,13 @@ const pasos = [
     n: "1",
     titulo: "Registro",
     texto:
-      "Un taller verificado (KYB) inicia sesión, captura el servicio, el kilometraje y un checklist de frenos, llantas, luces y más, y lo firma con su cuenta.",
+      "Un taller verificado (KYB) inicia sesión, captura el servicio, el kilometraje y un checklist de frenos, llantas, luces y más, y lo firma con su wallet de Freighter.",
   },
   {
     n: "2",
-    titulo: "Anclaje en Stellar",
+    titulo: "Contrato en Stellar",
     texto:
-      "El hash se publica en el memo de una transacción de Stellar. Desde ese momento nadie puede alterar el expediente sin que se note.",
+      "Un contrato inteligente (Soroban) comprueba que la wallet del taller esté aprobada y guarda el hash del expediente. Desde ese momento nadie, ni QRuta, puede alterarlo sin que se note.",
   },
   {
     n: "3",
@@ -31,11 +31,11 @@ const roadmap = [
   { titulo: "Pantalla ESP32", texto: "Un microcontrolador en la unidad genera el QR consumiendo la API pública." },
   { titulo: "Multi-firma", texto: "Taller y operador firman juntos cada expediente." },
   {
-    titulo: "Wallet del taller con passkey",
-    texto: "Cada taller firma con su propia wallet de Stellar y su huella, sin frases semilla (vía Accesly).",
+    titulo: "Firma con huella",
+    texto: "El taller firma con su huella o Face ID, sin extensión ni frase de recuperación (vía Accesly).",
   },
-  { titulo: "Soroban", texto: "Registro de talleres y expedientes en un contrato inteligente." },
-  { titulo: "Mainnet", texto: "Anclaje en la red principal de Stellar." },
+  { titulo: "Pago contra expediente", texto: "El operador paga el servicio en USDC y el contrato lo libera al taller al registrarse el expediente." },
+  { titulo: "Mainnet", texto: "Contrato y registros en la red principal de Stellar." },
 ];
 
 export default function Home() {
@@ -71,6 +71,12 @@ export default function Home() {
                 Verificar una unidad
               </Link>
             </div>
+            <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+              ¿Tienes un taller?{" "}
+              <Link href="/registro-taller" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+                Solicita tu alta en QRuta
+              </Link>
+            </p>
           </div>
 
           {/* Vista previa de la tarjeta de verificación */}

@@ -15,9 +15,9 @@ import {
   type ChecklistKey,
   type Tipo,
 } from "@/lib/config";
-import { FreighterError, abreviar, firmarConFreighter } from "@/lib/freighter";
+import { FreighterError, firmarConFreighter } from "@/lib/freighter";
 import { ChecklistView } from "./checklist-view";
-import { formatFecha, inputClass } from "./ui";
+import { abreviar, formatFecha, inputClass } from "./ui";
 
 type Resultado = {
   placa: string;

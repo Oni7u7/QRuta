@@ -1,6 +1,6 @@
-import { stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
+import { contractId, stellarExpertContractUrl, stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
 import { supabaseAdmin } from "./supabase";
-import { EXPEDIENTE_COLUMNS, comprobarIntegridad, type Integridad } from "./verificar";
+import { EXPEDIENTE_COLUMNS, comprobarIntegridad, firmaDe, type Firma, type Integridad } from "./verificar";
 
 export type ExpedienteCompleto = {
   id: number;
@@ -11,7 +11,9 @@ export type ExpedienteCompleto = {
   checklist: Checklist | null;
   notas: string;
   firmado_por: string;
-  taller_verificado: boolean;
+  firma: Firma;
+  firmado_con: string | null;
+  contrato: string | null;
   hash: string;
   stellar_expert: string;
   integridad: Integridad;
@@ -45,7 +47,9 @@ export async function historialPlaca(placa: string): Promise<{ registrada: boole
       checklist: e.hash_version === 2 ? (e.checklist as Checklist) : null,
       notas: e.notas ?? "",
       firmado_por: e.firmado_por,
-      taller_verificado: e.talleres?.estado === "aprobado",
+      firma: firmaDe(e),
+      firmado_con: e.firmado_con,
+      contrato: e.anclaje === "soroban" ? stellarExpertContractUrl(contractId()) : null,
       hash: e.hash,
       stellar_expert: stellarExpertTxUrl(e.tx_hash),
       integridad: await comprobarIntegridad(placa, e),

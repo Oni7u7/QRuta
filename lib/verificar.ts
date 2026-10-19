@@ -1,4 +1,4 @@
-import { stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
+import { contractId, stellarExpertContractUrl, stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
 import { recomputeHash } from "./hash";
 import { placaSchema } from "./placa";
 import { expedienteOnChain } from "./soroban";
@@ -14,13 +14,27 @@ export type Estado = "NO_REGISTRADA" | "EXPIRADO" | "SIN_MANTENIMIENTO" | "VENCI
 //            o en el contrato, firmado por la wallet del taller (anclaje "soroban"). null: Stellar no respondió a tiempo.
 export type Integridad = { datos: boolean; stellar: boolean | null };
 
+// Cómo quedó firmado el expediente al momento de registrarse:
+// contrato -> firmado con la wallet del taller, aprobada en el contrato (KYB on-chain)
+// kyb      -> registrado por un taller con KYB aprobado; QRuta lo ancló por memo
+// previo   -> registro anterior al KYB
+export type Firma = "contrato" | "kyb" | "previo";
+
+export function firmaDe(e: { anclaje: string; taller_id: string | null }): Firma {
+  if (e.anclaje === "soroban") return "contrato";
+  return e.taller_id ? "kyb" : "previo";
+}
+
 export type DetalleExpediente = {
   placa: string;
   tipo: Tipo;
   fecha: string;
   vigente_hasta: string;
   firmado_por: string;
-  taller_verificado: boolean;
+  firma: Firma;
+  // Wallet pública que firmó (solo firma "contrato") y enlace al contrato.
+  firmado_con: string | null;
+  contrato: string | null;
   // Resumen público: el checklist sí, las notas y el kilometraje no.
   checklist: Checklist | null;
   hash: string;
@@ -127,7 +141,9 @@ export async function verificar(placaRaw: string, token: string): Promise<Verifi
     fecha: exp.fecha,
     vigente_hasta: new Date(exp.vigente_hasta).toISOString(),
     firmado_por: exp.firmado_por,
-    taller_verificado: exp.talleres?.estado === "aprobado",
+    firma: firmaDe(exp),
+    firmado_con: exp.firmado_con,
+    contrato: exp.anclaje === "soroban" ? stellarExpertContractUrl(contractId()) : null,
     checklist: exp.hash_version === 2 ? (exp.checklist as Checklist) : null,
     hash: exp.hash,
     tx_hash: exp.tx_hash,

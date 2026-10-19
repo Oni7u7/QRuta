@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChecklistView, IntegridadBadge, tieneFallas } from "@/components/checklist-view";
-import { formatFecha, inputClass } from "@/components/ui";
+import { abreviar, formatFecha, inputClass } from "@/components/ui";
 import { TIPO_LABEL } from "@/lib/config";
 import { getTaller } from "@/lib/auth";
 import { historialPlaca } from "@/lib/historial";
@@ -92,7 +92,18 @@ export default async function UnidadPage({ searchParams }: { searchParams: Promi
                       </p>
                       <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         {e.firmado_por}
-                        {e.taller_verificado ? " · taller verificado" : " · registro previo al KYB"}
+                        {e.firma === "contrato" && e.firmado_con ? (
+                          <>
+                            {" · firmado con "}
+                            <span className="font-mono" title={e.firmado_con}>
+                              {abreviar(e.firmado_con)}
+                            </span>
+                          </>
+                        ) : e.firma === "kyb" ? (
+                          " · taller verificado"
+                        ) : (
+                          " · registro previo al KYB"
+                        )}
                         {e.kilometraje != null && ` · ${e.kilometraje.toLocaleString("es-MX")} km`}
                       </p>
                     </div>
@@ -126,7 +137,7 @@ export default async function UnidadPage({ searchParams }: { searchParams: Promi
                   )}
 
                   <div className="mt-4">
-                    <IntegridadBadge {...e.integridad} />
+                    <IntegridadBadge {...e.integridad} contrato={e.firma === "contrato"} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-mono break-all text-zinc-500 dark:text-zinc-400">{e.hash}</span>
