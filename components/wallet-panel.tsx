@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { FreighterError, abreviar, conectarFreighter } from "@/lib/freighter";
+import { FreighterError, conectarFreighter } from "@/lib/freighter";
+import { abreviar } from "./ui";
 
 type Props =
   | { estado: "sin-wallet" }
@@ -19,19 +20,23 @@ export function WalletPanel(props: Props) {
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Vincula la wallet y QRuta la activa en el contrato (el KYB del taller ya está aprobado).
+  async function activar(address: string) {
+    const res = await fetch("/api/taller/wallet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address }),
+    });
+    const json = await res.json().catch(() => null);
+    router.refresh();
+    if (!res.ok) setError(json?.error ?? "No se pudo activar la wallet");
+  }
+
   async function conectar() {
     setOcupado(true);
     setError(null);
     try {
-      const address = await conectarFreighter();
-      const res = await fetch("/api/taller/wallet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) return setError(json?.error ?? "No se pudo vincular la wallet");
-      router.refresh();
+      await activar(await conectarFreighter());
     } catch (err) {
       setError(err instanceof FreighterError ? err.message : "No se pudo conectar con Freighter.");
     } finally {
@@ -39,11 +44,17 @@ export function WalletPanel(props: Props) {
     }
   }
 
-  async function comprobar() {
+  async function reintentar() {
+    if (props.estado === "sin-wallet") return;
     setOcupado(true);
-    router.refresh();
-    // refresh no devuelve promesa: damos un momento antes de reactivar el botón.
-    setTimeout(() => setOcupado(false), 1500);
+    setError(null);
+    try {
+      await activar(props.wallet);
+    } catch {
+      setError("Sin conexión con el servidor. Intenta de nuevo.");
+    } finally {
+      setOcupado(false);
+    }
   }
 
   return (
@@ -76,29 +87,29 @@ export function WalletPanel(props: Props) {
             className={`${boton} mt-5 bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400`}
           >
             {ocupado && <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
-            {ocupado ? "Conectando…" : "Conectar Freighter"}
+            {ocupado ? "Conectando y activando…" : "Conectar Freighter"}
           </button>
         </>
       ) : (
         <>
           <h2 id="wallet-titulo" className="text-lg font-semibold">
-            {props.estado === "pendiente" ? "Tu wallet espera aprobación" : "No pudimos comprobar tu wallet"}
+            {props.estado === "pendiente" ? "Falta activar tu wallet" : "No pudimos comprobar tu wallet"}
           </h2>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Wallet vinculada: <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{abreviar(props.wallet)}</span>
           </p>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             {props.estado === "pendiente"
-              ? "QRuta debe aprobarla en el contrato antes de que puedas firmar servicios. Avísale a QRuta que ya la conectaste."
+              ? "Tu wallet está vinculada, pero su activación en el contrato de QRuta no se completó. Vuelve a intentarlo; tarda unos segundos."
               : "Stellar no respondió a tiempo. Intenta de nuevo en unos segundos."}
           </p>
           <button
             type="button"
-            onClick={comprobar}
+            onClick={reintentar}
             disabled={ocupado}
             className={`${boton} mt-5 border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900`}
           >
-            {ocupado ? "Comprobando…" : "Comprobar de nuevo"}
+            {ocupado ? "Activando…" : "Activar mi wallet"}
           </button>
         </>
       )}

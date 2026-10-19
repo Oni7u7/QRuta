@@ -1,15 +1,12 @@
 // Integración con la extensión Freighter. Solo se usa en el navegador:
 // la librería se carga bajo demanda para que nunca se ejecute en el servidor.
 // QRuta nunca ve la llave privada: Freighter firma dentro de la extensión y devuelve la transacción firmada.
+import { abreviar } from "@/components/ui";
 import { TESTNET_PASSPHRASE } from "./config";
 
 export class FreighterError extends Error {}
 
 const freighter = () => import("@stellar/freighter-api");
-
-export function abreviar(direccion: string) {
-  return `${direccion.slice(0, 4)}…${direccion.slice(-4)}`;
-}
 
 async function exigirInstalada() {
   const f = await freighter();
