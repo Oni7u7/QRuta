@@ -205,3 +205,39 @@ export async function enviarYConfirmar(tx: Transaction): Promise<string> {
   }
   throw new SorobanError("Stellar tardó demasiado en confirmar. Revisa más tarde en Stellar Expert.", 504);
 }
+
+// ── KYB on-chain (firma la cuenta admin del contrato, desde el servidor) ──
+
+function adminKeypair() {
+  const secret = process.env.STELLAR_SECRET;
+  if (!secret) throw new Error("Falta STELLAR_SECRET");
+  return Keypair.fromSecret(secret);
+}
+
+async function invocarComoAdmin(fn: "aprobar_taller" | "suspender_taller", direccion: string): Promise<string> {
+  const admin = adminKeypair();
+  const cuenta = await server.getAccount(admin.publicKey());
+  const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: Networks.TESTNET })
+    .addOperation(new Contract(contractId()).call(fn, new Address(direccion).toScVal()))
+    .setTimeout(60)
+    .build();
+  let preparada: Transaction;
+  try {
+    preparada = await server.prepareTransaction(tx);
+  } catch (err) {
+    console.error(`Simulación de ${fn} falló:`, err instanceof Error ? err.message.slice(0, 200) : err);
+    throw new SorobanError("No se pudo preparar la operación en el contrato. Intenta de nuevo.", 502);
+  }
+  preparada.sign(admin);
+  return enviarYConfirmar(preparada);
+}
+
+// Aprueba una wallet de taller en el contrato. Idempotente: aprobar dos veces no cambia nada.
+export function aprobarTallerOnChain(direccion: string) {
+  return invocarComoAdmin("aprobar_taller", direccion);
+}
+
+// Suspende una wallet: ya no puede firmar expedientes nuevos; los anteriores siguen válidos.
+export function suspenderTallerOnChain(direccion: string) {
+  return invocarComoAdmin("suspender_taller", direccion);
+}
