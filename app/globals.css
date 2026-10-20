@@ -1,21 +1,100 @@
 @import "tailwindcss";
 
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* El tema lo decide data-theme en <html> (sistema por defecto, o la elección guardada). */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ── Identidad visual de QRuta (manual v1.0, octubre 2026) ──
+   Colores de marca y de estado: fijos en ambos temas. */
+:root {
+  --marca-naranja: #f26a1b;
+  --marca-grafito: #1e2124;
+  --marca-oxido: #b8440a;
+  --marca-acero: #6b7280;
+  --marca-papel: #f6f5f3;
+  --marca-blanco: #ffffff;
+  --marca-negro: #000000;
+
+  --estado-vigente: #15803d;
+  --estado-por-vencer: #facc15;
+  --estado-vencido: #b91c1c;
+
+  /* Tokens semánticos: tema claro */
+  --tema-fondo: var(--marca-papel);
+  --tema-superficie: var(--marca-blanco);
+  --tema-texto: var(--marca-grafito);
+  /* Texto secundario: Acero sobre superficies blancas (4.83:1). Sobre Papel, Acero da 4.44:1 (< 4.5:1),
+     así que ahí se usa Grafito. Las superficies blancas restauran Acero más abajo. */
+  --tema-texto-2-superficie: var(--marca-acero);
+  --tema-texto-2: var(--marca-grafito);
+  --tema-enlace: var(--marca-oxido);
+  --tema-linea: color-mix(in srgb, var(--marca-acero) 25%, transparent);
+  --tema-borde: var(--marca-acero);
+  --tema-resultado: var(--marca-blanco);
+  /* Texto de estado sobre la superficie (los colores de estado no contrastan sobre fondos oscuros). */
+  --tema-texto-vigente: var(--estado-vigente);
+  --tema-texto-vencido: var(--estado-vencido);
+  color-scheme: light;
 }
 
-:root {
-  color-scheme: light dark;
+:root[data-theme="dark"] {
+  --tema-fondo: var(--marca-grafito);
+  --tema-superficie: #272a30;
+  --tema-texto: var(--marca-blanco);
+  --tema-texto-2-superficie: #a3a9b3;
+  --tema-texto-2: #a3a9b3;
+  --tema-enlace: var(--marca-naranja);
+  --tema-linea: color-mix(in srgb, var(--marca-blanco) 12%, transparent);
+  --tema-borde: #a3a9b3;
+  --tema-resultado: var(--marca-grafito);
+  --tema-texto-vigente: var(--marca-blanco);
+  --tema-texto-vencido: var(--marca-blanco);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--font-archivo), Arial, sans-serif;
+  --font-mono: var(--font-archivo), Arial, sans-serif;
+
+  --color-naranja: var(--marca-naranja);
+  --color-grafito: var(--marca-grafito);
+  --color-oxido: var(--marca-oxido);
+  --color-acero: var(--marca-acero);
+  --color-papel: var(--marca-papel);
+  --color-blanco: var(--marca-blanco);
+  --color-negro: var(--marca-negro);
+
+  --color-vigente: var(--estado-vigente);
+  --color-por-vencer: var(--estado-por-vencer);
+  --color-vencido: var(--estado-vencido);
+
+  --color-fondo: var(--tema-fondo);
+  --color-superficie: var(--tema-superficie);
+  --color-texto: var(--tema-texto);
+  --color-texto-2: var(--tema-texto-2);
+  --color-enlace: var(--tema-enlace);
+  --color-linea: var(--tema-linea);
+  --color-borde: var(--tema-borde);
+  --color-resultado: var(--tema-resultado);
+  --color-texto-vigente: var(--tema-texto-vigente);
+  --color-texto-vencido: var(--tema-texto-vencido);
+}
+
+/* Dentro de superficies blancas el texto secundario vuelve a ser Acero. */
+.tarjeta,
+.bg-superficie,
+.bg-resultado,
+.bg-blanco,
+.campo {
+  --tema-texto-2: var(--tema-texto-2-superficie);
 }
 
 body {
-  @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  @apply bg-fondo font-sans text-[17px] text-texto antialiased;
 }
 
 /* Foco visible y consistente para navegación con teclado. */
 :focus-visible {
-  @apply outline-2 outline-offset-2 outline-teal-600 dark:outline-teal-400;
+  @apply outline-2 outline-offset-2 outline-texto;
 }
 
 html {
@@ -25,5 +104,40 @@ html {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+}
+
+
+/* ── Componentes base ── */
+@layer components {
+  /* Título: ExtraBold 800, 40 px (30 px en móvil), interletrado apretado. */
+  .titulo {
+    @apply text-[30px] leading-[1.1] font-extrabold tracking-tight text-balance sm:text-[40px];
+  }
+  /* Subtítulo: SemiBold 600, 24 px. */
+  .subtitulo {
+    @apply text-2xl leading-tight font-semibold;
+  }
+  /* Etiqueta de sección: SemiBold, ~13 px, mayúsculas, interletrado amplio. */
+  .etiqueta {
+    @apply text-[13px] font-semibold tracking-[0.12em] uppercase;
+  }
+  /* Tarjeta: superficie, esquinas redondeadas, sin sombra. */
+  .tarjeta {
+    @apply rounded-2xl border border-linea bg-superficie;
+  }
+  /* Botón primario: Naranja con texto Grafito (nunca blanco sobre naranja). */
+  .btn-primario {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-naranja px-5 font-semibold text-grafito hover:brightness-95 disabled:cursor-wait disabled:opacity-70;
+  }
+  /* Botón secundario: borde Acero, texto del tema. */
+  .btn-secundario {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-borde px-5 font-semibold text-texto hover:bg-fondo disabled:cursor-wait disabled:opacity-70;
+  }
+  .enlace {
+    @apply font-semibold text-enlace hover:underline;
+  }
+  .campo {
+    @apply mt-1 block w-full rounded-lg border border-borde bg-superficie px-3 py-2.5 text-base text-texto placeholder:text-texto-2 focus:border-texto focus:outline-none;
   }
 }
