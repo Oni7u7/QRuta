@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { TOTP_STEP } from "@/lib/config";
+import { QrMarca } from "./marca/qr-marca";
 
 type Estado =
   | { tipo: "cargando" }
@@ -81,16 +81,9 @@ export function PantallaQR({ placa }: { placa: string }) {
       <p className="mt-1 text-4xl font-extrabold tracking-widest sm:text-5xl">{placa}</p>
 
       {/* El QR va en una tarjeta blanca para que lo lea cualquier cámara. */}
-      <div className="mt-8 rounded-[20px] bg-blanco p-4">
+      <div className="mt-8 overflow-hidden rounded-[20px] bg-blanco p-1">
         {estado.tipo === "listo" ? (
-          <QRCodeSVG
-            value={estado.url}
-            size={280}
-            level="M"
-            marginSize={2}
-            className="block size-64 sm:size-72"
-            title={`Código QR de verificación de la unidad ${placa}`}
-          />
+          <QrMarca valor={estado.url} className="block size-64 sm:size-72" titulo={`Código QR de verificación de la unidad ${placa}`} />
         ) : (
           <div className="size-64 animate-pulse rounded-lg bg-papel sm:size-72" role="status" aria-label="Generando código" />
         )}
