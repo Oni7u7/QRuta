@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Logo } from "./marca/logo";
+import { MenuMovil } from "./menu-movil";
 import { SelectorTema } from "./tema/selector-tema";
 
 const links = [
-  { href: "/#como-funciona", label: "Cómo funciona", soloEscritorio: true },
-  { href: "/#roadmap", label: "Roadmap", soloEscritorio: true },
+  { href: "/#como-funciona", label: "Cómo funciona" },
+  { href: "/#roadmap", label: "Roadmap" },
   { href: "/verificar", label: "Verificar" },
   { href: "/taller", label: "Talleres" },
 ];
@@ -23,16 +24,24 @@ export function SiteHeader() {
           </span>
         </Link>
         <div className="flex items-center gap-1 sm:gap-3">
-          <ul className="flex items-center gap-4 text-[15px] font-semibold text-texto sm:gap-6">
+          {/* Escritorio: todos los enlaces en una línea. */}
+          <ul className="hidden items-center gap-6 text-[15px] font-semibold text-texto md:flex">
             {links.map((l) => (
-              <li key={l.href} className={l.soloEscritorio ? "hidden sm:block" : undefined}>
+              <li key={l.href}>
                 <Link href={l.href} className="hover:text-enlace">
                   {l.label}
                 </Link>
               </li>
             ))}
           </ul>
+          {/* Móvil: la acción principal a la vista y el resto en el menú. */}
+          <Link href="/verificar" className="mr-1 text-[15px] font-semibold text-texto hover:text-enlace md:hidden">
+            Verificar
+          </Link>
           <SelectorTema />
+          <div className="md:hidden">
+            <MenuMovil links={links} />
+          </div>
         </div>
       </nav>
     </header>
