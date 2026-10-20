@@ -1,14 +1,16 @@
 import Link from "next/link";
+import { EstadoBadge, type TonoEstado } from "@/components/marca/estado-unidad";
 import { TallerAcciones } from "@/components/taller-acciones";
 import { abreviar, formatFecha } from "@/components/ui";
 import { getAdmin } from "@/lib/auth";
 import { listarSolicitudes, type Solicitud } from "@/lib/solicitudes-admin";
 import { listarTalleres, type TallerAdmin } from "@/lib/talleres-admin";
 
-const ESTADO: Record<Solicitud["estado"], { texto: string; clase: string }> = {
-  pendiente: { texto: "Pendiente", clase: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
-  aprobada: { texto: "Aprobada", clase: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300" },
-  rechazada: { texto: "Rechazada", clase: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" },
+// Estados con los colores del manual: siempre icono + palabra.
+const ESTADO: Record<Solicitud["estado"], { texto: string; tono: TonoEstado }> = {
+  pendiente: { texto: "Pendiente", tono: "por-vencer" },
+  aprobada: { texto: "Aprobada", tono: "vigente" },
+  rechazada: { texto: "Rechazada", tono: "vencido" },
 };
 
 export default async function AdminPage() {
@@ -19,8 +21,8 @@ export default async function AdminPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-semibold tracking-tight">Panel de administración</h1>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">Revisa las solicitudes de alta y administra los talleres de QRuta.</p>
+      <h1 className="titulo">Panel de administración</h1>
+      <p className="mt-2 text-texto-2">Revisa las solicitudes de alta y administra los talleres de QRuta.</p>
 
       <ul className="mt-8 grid gap-4 sm:grid-cols-2">
         <Resumen titulo="Solicitudes pendientes" valor={pendientes.length} texto="Talleres que esperan la revisión de su KYB." />
@@ -32,7 +34,7 @@ export default async function AdminPage() {
           Solicitudes pendientes
         </h2>
         {pendientes.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay solicitudes por revisar.</p>
+          <p className="mt-3 text-sm text-texto-2">No hay solicitudes por revisar.</p>
         ) : (
           <Lista solicitudes={pendientes} />
         )}
@@ -43,9 +45,9 @@ export default async function AdminPage() {
           Talleres
         </h2>
         {talleres.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Aún no hay talleres.</p>
+          <p className="mt-3 text-sm text-texto-2">Aún no hay talleres.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          <ul className="mt-3 divide-y divide-linea rounded-xl border border-linea">
             {talleres.map((t) => (
               <TallerFila key={t.id} t={t} />
             ))}
@@ -67,18 +69,18 @@ export default async function AdminPage() {
 
 function Resumen({ titulo, valor, texto }: { titulo: string; valor: number; texto: string }) {
   return (
-    <li className="rounded-2xl border border-zinc-200 p-5 dark:border-zinc-800">
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">{titulo}</p>
+    <li className="rounded-2xl border border-linea p-5">
+      <p className="text-sm text-texto-2">{titulo}</p>
       <p className="mt-1 text-3xl font-semibold tabular-nums">{valor}</p>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{texto}</p>
+      <p className="mt-1 text-sm text-texto-2">{texto}</p>
     </li>
   );
 }
 
-const ESTADO_TALLER: Record<TallerAdmin["estado"], { texto: string; clase: string }> = {
-  aprobado: { texto: "Activo", clase: "bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300" },
-  suspendido: { texto: "Suspendido", clase: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" },
-  pendiente: { texto: "Pendiente", clase: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
+const ESTADO_TALLER: Record<TallerAdmin["estado"], { texto: string; tono: TonoEstado }> = {
+  aprobado: { texto: "Activo", tono: "vigente" },
+  suspendido: { texto: "Suspendido", tono: "vencido" },
+  pendiente: { texto: "Pendiente", tono: "por-vencer" },
 };
 
 function TallerFila({ t }: { t: TallerAdmin }) {
@@ -93,10 +95,10 @@ function TallerFila({ t }: { t: TallerAdmin }) {
     <li className="flex flex-col gap-3 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <p className="truncate font-medium">{t.nombre}</p>
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO_TALLER[t.estado].clase}`}>{ESTADO_TALLER[t.estado].texto}</span>
+          <p className="truncate font-semibold">{t.nombre}</p>
+          <EstadoBadge tono={ESTADO_TALLER[t.estado].tono}>{ESTADO_TALLER[t.estado].texto}</EstadoBadge>
         </div>
-        <p className="truncate text-zinc-500 dark:text-zinc-400">
+        <p className="truncate text-texto-2">
           {t.email ?? "sin correo"}
           {t.rfc && (
             <>
@@ -105,7 +107,7 @@ function TallerFila({ t }: { t: TallerAdmin }) {
             </>
           )}
         </p>
-        <p className="text-zinc-500 dark:text-zinc-400">
+        <p className="text-texto-2">
           <span className="font-mono">{wallet}</span> · {t.servicios} {t.servicios === 1 ? "servicio" : "servicios"}
         </p>
       </div>
@@ -116,22 +118,22 @@ function TallerFila({ t }: { t: TallerAdmin }) {
 
 function Lista({ solicitudes }: { solicitudes: Solicitud[] }) {
   return (
-    <ul className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+    <ul className="mt-3 divide-y divide-linea rounded-xl border border-linea">
       {solicitudes.map((s) => (
         <li key={s.id}>
           <Link
             href={`/admin/solicitudes/${s.id}`}
-            className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-fondo"
           >
             <div className="min-w-0">
-              <p className="truncate font-medium">{s.nombre_comercial}</p>
-              <p className="truncate text-zinc-500 dark:text-zinc-400">
+              <p className="truncate font-semibold">{s.nombre_comercial}</p>
+              <p className="truncate text-texto-2">
                 <span className="font-mono">{s.rfc}</span> · {s.email}
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${ESTADO[s.estado].clase}`}>{ESTADO[s.estado].texto}</span>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{formatFecha(s.revisada_at ?? s.created_at)}</span>
+              <EstadoBadge tono={ESTADO[s.estado].tono}>{ESTADO[s.estado].texto}</EstadoBadge>
+              <span className="text-xs text-texto-2">{formatFecha(s.revisada_at ?? s.created_at)}</span>
             </div>
           </Link>
         </li>

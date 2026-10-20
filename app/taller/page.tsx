@@ -25,8 +25,8 @@ export default async function TallerPage() {
 
   return (
     <>
-      <h1 className="text-3xl font-semibold tracking-tight">Registrar servicio</h1>
-      <p className="mt-2 mb-8 text-zinc-600 dark:text-zinc-400">
+      <h1 className="titulo">Registrar servicio</h1>
+      <p className="mt-2 mb-8 text-texto-2">
         Captura el mantenimiento de la unidad y fírmalo con tu wallet. El expediente queda en el contrato de QRuta en Stellar y
         es verificable con el QR de la unidad.
       </p>
@@ -43,19 +43,19 @@ export default async function TallerPage() {
           Tus últimos servicios
         </h2>
         {recientes.length === 0 ? (
-          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Aún no has registrado servicios.</p>
+          <p className="mt-3 text-sm text-texto-2">Aún no has registrado servicios.</p>
         ) : (
-          <ul className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          <ul className="mt-3 divide-y divide-linea rounded-xl border border-linea">
             {recientes.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div className="min-w-0">
                   <Link
                     href={`/taller/unidad?p=${s.placa}`}
-                    className="font-mono font-medium tracking-wider hover:text-teal-700 hover:underline dark:hover:text-teal-400"
+                    className="font-mono font-semibold tracking-wider hover:text-enlace hover:underline"
                   >
                     {s.placa}
                   </Link>
-                  <p className="text-zinc-500 dark:text-zinc-400">
+                  <p className="text-texto-2">
                     {TIPO_LABEL[s.tipo]} · {formatFecha(s.fecha)}
                   </p>
                 </div>
@@ -63,7 +63,7 @@ export default async function TallerPage() {
                   href={s.stellar_expert}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="shrink-0 text-teal-700 hover:underline dark:text-teal-400"
+                  className="shrink-0 text-enlace hover:underline"
                 >
                   Ver tx<span className="sr-only"> de {s.placa} en Stellar Expert (abre en otra pestaña)</span>
                 </a>

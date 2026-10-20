@@ -78,13 +78,13 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
   }
 
   const aviso = error && (
-    <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+    <p role="alert" className="mt-3 rounded-lg border border-vencido bg-superficie px-4 py-3 text-sm text-texto-vencido">
       {error}
     </p>
   );
 
   const bloqueResultado = resultado && (
-    <div role="status" className="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm dark:border-teal-900 dark:bg-teal-950">
+    <div role="status" className="tarjeta border-l-4 border-l-vigente p-4 text-sm">
       {resultado.tipo === "correo" ? (
         <p>
           <strong className="font-semibold">Taller aprobado.</strong> Enviamos la invitación a {email}. Si no le llega, genera un enlace
@@ -108,7 +108,7 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
             <button
               type="button"
               onClick={(e) => copiar(resultado.enlace, e.currentTarget.previousElementSibling as HTMLInputElement)}
-              className="h-11 shrink-0 rounded-lg bg-teal-600 px-4 font-medium text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-zinc-950"
+              className="h-11 shrink-0 rounded-lg bg-naranja px-4 font-semibold text-grafito hover:brightness-95"
             >
               {copiado ? "Copiado" : "Copiar"}
             </button>
@@ -120,16 +120,16 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
 
   if (estado === "rechazada") {
     return (
-      <div className="rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+      <div className="rounded-xl border border-linea p-4 text-sm">
         <p className="font-semibold">Solicitud rechazada</p>
         {revisadaAt && (
-          <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-texto-2">
             {revisadaPor ? `Por ${revisadaPor}, ` : ""}
             {fechaHora(revisadaAt)}
           </p>
         )}
         {motivo && <p className="mt-2">Motivo: {motivo}</p>}
-        <p className="mt-2 text-zinc-500 dark:text-zinc-400">Avísale al taller por correo o teléfono; QRuta no le envía el rechazo.</p>
+        <p className="mt-2 text-texto-2">Avísale al taller por correo o teléfono; QRuta no le envía el rechazo.</p>
       </div>
     );
   }
@@ -137,10 +137,10 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
   if (estado === "aprobada") {
     return (
       <div className="space-y-3">
-        <div className="rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-          <p className="font-semibold text-teal-700 dark:text-teal-400">Solicitud aprobada</p>
+        <div className="rounded-xl border border-linea p-4 text-sm">
+          <p className="font-semibold text-enlace">Solicitud aprobada</p>
           {revisadaAt && (
-            <p className="mt-1 text-zinc-500 dark:text-zinc-400">
+            <p className="mt-1 text-texto-2">
               {revisadaPor ? `Por ${revisadaPor}, ` : ""}
               {fechaHora(revisadaAt)}
             </p>
@@ -149,7 +149,7 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
             type="button"
             onClick={nuevoEnlace}
             disabled={ocupado}
-            className="mt-3 text-sm font-medium text-teal-700 hover:underline disabled:opacity-60 dark:text-teal-400"
+            className="mt-3 text-sm font-semibold text-enlace hover:underline disabled:opacity-60"
           >
             {ocupado ? "Generando…" : "Generar enlace de acceso para el taller"}
           </button>
@@ -162,9 +162,9 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+      <p className="text-sm text-texto-2">
         Revisa que los datos coincidan con el documento antes de aprobar. Al aprobar se crea la cuenta del taller y se le envía la
-        invitación a <span className="font-medium text-zinc-900 dark:text-zinc-100">{email}</span>.
+        invitación a <span className="font-semibold text-texto">{email}</span>.
       </p>
 
       {!rechazando && !confirmando && (
@@ -172,14 +172,14 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
           <button
             type="button"
             onClick={() => setConfirmando(true)}
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
+            className="btn-primario"
           >
             Aprobar y enviar invitación
           </button>
           <button
             type="button"
             onClick={() => setRechazando(true)}
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-5 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="btn-secundario"
           >
             Rechazar
           </button>
@@ -187,14 +187,14 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
       )}
 
       {confirmando && (
-        <div className="rounded-xl border border-teal-200 p-4 text-sm dark:border-teal-900">
-          <p className="font-medium">¿Confirmas que los datos y el documento coinciden?</p>
+        <div className="rounded-xl border border-linea p-4 text-sm">
+          <p className="font-semibold">¿Confirmas que los datos y el documento coinciden?</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <button
               type="button"
               onClick={aprobar}
               disabled={ocupado}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70 dark:bg-teal-500 dark:text-zinc-950"
+              className="btn-primario"
             >
               {ocupado ? "Aprobando…" : "Sí, aprobar"}
             </button>
@@ -202,7 +202,7 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
               type="button"
               onClick={() => setConfirmando(false)}
               disabled={ocupado}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-5 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="btn-secundario"
             >
               Cancelar
             </button>
@@ -211,8 +211,8 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
       )}
 
       {rechazando && (
-        <form onSubmit={rechazar} className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-          <label htmlFor="motivo" className="text-sm font-medium">
+        <form onSubmit={rechazar} className="rounded-xl border border-linea p-4">
+          <label htmlFor="motivo" className="text-sm font-semibold">
             Motivo del rechazo
           </label>
           <textarea
@@ -229,7 +229,7 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
             <button
               type="submit"
               disabled={ocupado}
-              className="inline-flex h-11 items-center justify-center rounded-lg bg-red-600 px-5 font-medium text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-70 dark:bg-red-500 dark:text-zinc-950"
+              className="inline-flex h-11 items-center justify-center rounded-lg bg-vencido px-5 font-semibold text-blanco hover:brightness-95 disabled:cursor-wait disabled:opacity-70"
             >
               {ocupado ? "Rechazando…" : "Rechazar solicitud"}
             </button>
@@ -237,7 +237,7 @@ export function SolicitudAcciones({ id, estado, email, motivo, revisadaPor, revi
               type="button"
               onClick={() => setRechazando(false)}
               disabled={ocupado}
-              className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-5 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+              className="btn-secundario"
             >
               Cancelar
             </button>

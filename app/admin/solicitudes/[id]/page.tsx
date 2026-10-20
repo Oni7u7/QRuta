@@ -30,22 +30,22 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
 
   return (
     <>
-      <Link href="/admin" className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400">
+      <Link href="/admin" className="text-sm font-semibold text-enlace hover:underline">
         ← Volver al panel
       </Link>
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight">{s.nombre_comercial}</h1>
-      <p className="mt-1 text-zinc-600 dark:text-zinc-400">Solicitud de alta #{s.id}</p>
+      <h1 className="titulo mt-4">{s.nombre_comercial}</h1>
+      <p className="mt-1 text-texto-2">Solicitud de alta #{s.id}</p>
 
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <section aria-labelledby="datos" className="min-w-0">
           <h2 id="datos" className="text-sm font-semibold">
             Datos de la solicitud
           </h2>
-          <dl className="mt-2 divide-y divide-zinc-200 rounded-xl border border-zinc-200 px-4 text-sm dark:divide-zinc-800 dark:border-zinc-800">
+          <dl className="mt-2 divide-y divide-linea rounded-xl border border-linea px-4 text-sm">
             {campos.map(([k, v]) => (
               <div key={k} className="grid gap-1 py-3 sm:grid-cols-[10rem_minmax(0,1fr)]">
-                <dt className="text-zinc-500 dark:text-zinc-400">{k}</dt>
-                <dd className="font-medium break-words">{v}</dd>
+                <dt className="text-texto-2">{k}</dt>
+                <dd className="font-semibold break-words">{v}</dd>
               </div>
             ))}
           </dl>
@@ -71,7 +71,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
               href={`/api/admin/solicitudes/${s.id}/documento`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+              className="text-sm font-semibold text-enlace hover:underline"
             >
               Abrir en otra pestaña<span className="sr-only"> (PDF)</span>
             </a>
@@ -79,7 +79,7 @@ export default async function SolicitudPage({ params }: { params: Promise<{ id: 
           <iframe
             src={`/api/admin/solicitudes/${s.id}/documento`}
             title={`Documento de ${s.nombre_comercial}`}
-            className="mt-2 h-[70vh] w-full rounded-xl border border-zinc-200 bg-white dark:border-zinc-800"
+            className="mt-2 h-[70vh] w-full rounded-xl border border-linea bg-superficie"
           />
         </section>
       </div>

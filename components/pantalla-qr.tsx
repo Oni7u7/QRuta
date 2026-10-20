@@ -59,7 +59,7 @@ export function PantallaQR({ placa }: { placa: string }) {
   if (estado.tipo === "no_registrada") {
     return (
       <Aviso titulo="Unidad no registrada" texto={`La placa ${placa} todavía no tiene servicios en QRuta.`}>
-        <Link href="/taller" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+        <Link href="/taller" className="font-semibold text-naranja hover:underline">
           Registrar un servicio
         </Link>
       </Aviso>
@@ -74,13 +74,14 @@ export function PantallaQR({ placa }: { placa: string }) {
   const segundos = Math.ceil(restanteMs / 1000);
   const progreso = Math.min(1, restanteMs / (TOTP_STEP * 1000));
 
+  // Siempre sobre Grafito (pantalla del dispositivo, igual en ambos temas).
   return (
-    <div className="flex flex-col items-center text-center">
-      <p className="text-sm font-medium tracking-wide text-zinc-500 uppercase dark:text-zinc-400">Unidad</p>
-      <p className="mt-1 font-mono text-4xl font-semibold tracking-widest sm:text-5xl">{placa}</p>
+    <div className="flex flex-col items-center text-center text-blanco">
+      <p className="etiqueta opacity-80">Unidad</p>
+      <p className="mt-1 text-4xl font-extrabold tracking-widest sm:text-5xl">{placa}</p>
 
-      {/* El QR siempre va sobre blanco para que lo lea cualquier cámara, también en modo oscuro. */}
-      <div className="mt-8 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-700">
+      {/* El QR va en una tarjeta blanca para que lo lea cualquier cámara. */}
+      <div className="mt-8 rounded-[20px] bg-blanco p-4">
         {estado.tipo === "listo" ? (
           <QRCodeSVG
             value={estado.url}
@@ -91,39 +92,36 @@ export function PantallaQR({ placa }: { placa: string }) {
             title={`Código QR de verificación de la unidad ${placa}`}
           />
         ) : (
-          <div className="size-64 animate-pulse rounded-lg bg-zinc-100 sm:size-72" role="status" aria-label="Generando código" />
+          <div className="size-64 animate-pulse rounded-lg bg-papel sm:size-72" role="status" aria-label="Generando código" />
         )}
       </div>
 
       <div className="mt-6 w-64 sm:w-72">
-        <div className="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800" aria-hidden="true">
-          <div
-            className={`h-full rounded-full transition-[width] duration-300 ease-linear ${
-              segundos <= 3 ? "bg-amber-500" : "bg-teal-600 dark:bg-teal-400"
-            }`}
-            style={{ width: `${progreso * 100}%` }}
-          />
-        </div>
-        <p className="mt-2 text-sm text-zinc-600 tabular-nums dark:text-zinc-400">
-          {estado.tipo === "listo" ? `El código cambia en ${segundos} s` : "Generando código…"}
+        <p className="flex items-baseline justify-center gap-2 tabular-nums">
+          {estado.tipo === "listo" ? (
+            <>
+              <span>Cambia en</span>
+              <span className="text-xl font-semibold text-naranja">{segundos} s</span>
+            </>
+          ) : (
+            "Generando código…"
+          )}
         </p>
+        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-blanco/15" aria-hidden="true">
+          <div className="h-full rounded-full bg-naranja transition-[width] duration-300 ease-linear" style={{ width: `${progreso * 100}%` }} />
+        </div>
       </div>
 
-      <p className="mt-6 max-w-xs text-lg font-medium">Escanea para verificar el mantenimiento</p>
+      <p className="mt-6 max-w-xs text-lg font-semibold">Escanea para verificar el mantenimiento</p>
 
       {reconectando && (
-        <p role="status" className="mt-4 text-sm text-amber-700 dark:text-amber-400">
+        <p role="status" className="mt-4 text-sm">
           Reconectando…
         </p>
       )}
 
       {estado.tipo === "listo" && (
-        <a
-          href={estado.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-8 text-sm text-zinc-500 underline-offset-4 hover:underline dark:text-zinc-400"
-        >
+        <a href={estado.url} target="_blank" rel="noopener noreferrer" className="mt-8 text-sm text-naranja underline-offset-4 hover:underline">
           Abrir la verificación en este equipo<span className="sr-only"> (abre en otra pestaña)</span>
         </a>
       )}
@@ -133,9 +131,9 @@ export function PantallaQR({ placa }: { placa: string }) {
 
 function Aviso({ titulo, texto, children }: { titulo: string; texto: string; children?: React.ReactNode }) {
   return (
-    <div role="alert" className="mx-auto max-w-sm rounded-2xl border border-zinc-200 p-6 text-center dark:border-zinc-800">
-      <h2 className="text-lg font-semibold">{titulo}</h2>
-      <p className="mt-2 text-zinc-600 dark:text-zinc-400">{texto}</p>
+    <div role="alert" className="mx-auto max-w-sm rounded-2xl border border-blanco/15 p-6 text-center text-blanco">
+      <h2 className="subtitulo">{titulo}</h2>
+      <p className="mt-2">{texto}</p>
       {children && <div className="mt-4">{children}</div>}
     </div>
   );

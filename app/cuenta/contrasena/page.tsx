@@ -23,9 +23,9 @@ export default async function ContrasenaPage() {
     <>
       <SiteHeader />
       <main className="mx-auto w-full max-w-sm px-4 py-12 sm:py-20">
-        <h1 className="text-3xl font-semibold tracking-tight">Elige tu contraseña</h1>
-        <p className="mt-2 mb-8 text-zinc-600 dark:text-zinc-400">
-          Con ella entrarás a QRuta como <span className="font-medium text-zinc-900 dark:text-zinc-100">{user.email}</span>.
+        <h1 className="titulo">Elige tu contraseña</h1>
+        <p className="mt-2 mb-8 text-texto-2">
+          Con ella entrarás a QRuta como <span className="font-semibold text-texto">{user.email}</span>.
         </p>
         <ContrasenaForm />
       </main>

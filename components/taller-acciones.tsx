@@ -35,8 +35,8 @@ export function TallerAcciones({ id, nombre, estado }: { id: string; nombre: str
         <button
           type="button"
           onClick={() => setConfirmando(true)}
-          className={`text-sm font-medium hover:underline ${
-            accion === "suspender" ? "text-red-700 dark:text-red-400" : "text-teal-700 dark:text-teal-400"
+          className={`text-sm font-semibold hover:underline ${
+            accion === "suspender" ? "text-texto-vencido" : "text-enlace"
           }`}
         >
           {accion === "suspender" ? "Suspender" : "Reactivar"}
@@ -49,24 +49,24 @@ export function TallerAcciones({ id, nombre, estado }: { id: string; nombre: str
             type="button"
             onClick={ejecutar}
             disabled={ocupado}
-            className={`rounded-lg px-3 py-1.5 font-medium text-white disabled:cursor-wait disabled:opacity-70 ${
-              accion === "suspender" ? "bg-red-600 hover:bg-red-700" : "bg-teal-600 hover:bg-teal-700"
+            className={`rounded-lg px-3 py-1.5 font-semibold disabled:cursor-wait disabled:opacity-70 ${
+              accion === "suspender" ? "bg-vencido text-blanco hover:brightness-95" : "bg-naranja text-grafito hover:brightness-95"
             }`}
           >
             {ocupado ? "Firmando en Stellar…" : "Sí"}
           </button>
-          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado} className="rounded-lg border border-zinc-300 px-3 py-1.5 dark:border-zinc-700">
+          <button type="button" onClick={() => setConfirmando(false)} disabled={ocupado} className="rounded-lg border border-borde px-3 py-1.5">
             No
           </button>
         </div>
       )}
       {tx && (
-        <a href={tx} target="_blank" rel="noopener noreferrer" className="text-xs text-zinc-500 underline-offset-4 hover:underline dark:text-zinc-400">
+        <a href={tx} target="_blank" rel="noopener noreferrer" className="text-xs text-texto-2 underline-offset-4 hover:underline">
           Ver transacción<span className="sr-only"> en Stellar Expert (abre en otra pestaña)</span>
         </a>
       )}
       {error && (
-        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+        <p role="alert" className="text-xs text-texto-vencido">
           {error}
         </p>
       )}

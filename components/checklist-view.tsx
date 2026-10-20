@@ -1,23 +1,25 @@
 import { CHECKLIST_ITEMS, CHECK_LABEL, type CheckValor, type Checklist } from "@/lib/config";
+import { IconoEstado, type TonoEstado } from "./marca/estado-unidad";
 
-const ESTILO: Record<CheckValor, { clase: string; icono: string }> = {
-  ok: { clase: "bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300", icono: "✓" },
-  atencion: { clase: "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300", icono: "!" },
-  falla: { clase: "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300", icono: "✕" },
+// Cada resultado del checklist usa el color de estado correspondiente, siempre con icono y palabra.
+const TONO_CHECK: Record<CheckValor, TonoEstado> = { ok: "vigente", atencion: "por-vencer", falla: "vencido" };
+const CLASE_TONO: Record<TonoEstado, string> = {
+  vigente: "bg-vigente text-blanco",
+  "por-vencer": "bg-por-vencer text-grafito",
+  vencido: "bg-vencido text-blanco",
 };
 
 export function ChecklistView({ checklist }: { checklist: Checklist }) {
   return (
     <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
       {CHECKLIST_ITEMS.map(({ key, label }) => {
-        const v = checklist[key];
-        const e = ESTILO[v] ?? ESTILO.atencion;
+        const tono = TONO_CHECK[checklist[key]] ?? "por-vencer";
         return (
-          <li key={key} className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${e.clase}`}>
-            <span className="font-medium">{label}</span>
+          <li key={key} className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm ${CLASE_TONO[tono]}`}>
+            <span className="font-semibold">{label}</span>
             <span className="flex items-center gap-1 text-xs font-semibold">
-              <span aria-hidden="true">{e.icono}</span>
-              {CHECK_LABEL[v] ?? v}
+              <IconoEstado tono={tono} className="size-3.5" />
+              {CHECK_LABEL[checklist[key]] ?? checklist[key]}
             </span>
           </li>
         );
@@ -31,32 +33,23 @@ export function tieneFallas(checklist: Checklist | null) {
 }
 
 export function IntegridadBadge({ datos, stellar, contrato = false }: { datos: boolean; stellar: boolean | null; contrato?: boolean }) {
-  if (datos && stellar) {
-    return (
-      <p className="flex items-start gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-        <span aria-hidden="true">✓</span>
-        <span>
-          <strong className="font-semibold">Integridad verificada en Stellar.</strong>{" "}
-          {contrato
+  const [tono, titulo, texto]: [TonoEstado, string, string] =
+    datos && stellar
+      ? [
+          "vigente",
+          "Integridad verificada en Stellar.",
+          contrato
             ? "El taller firmó este expediente con su wallet y el contrato de QRuta lo tiene registrado con estos mismos datos."
-            : "Los datos coinciden con el hash anclado en la transacción."}
-        </span>
-      </p>
-    );
-  }
-  if (datos && stellar === null) {
-    return (
-      <p className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-        <span aria-hidden="true">!</span>
-        <span>No se pudo consultar Stellar en este momento. Revisa la transacción con el enlace.</span>
-      </p>
-    );
-  }
+            : "Los datos coinciden con el hash anclado en la transacción.",
+        ]
+      : datos && stellar === null
+        ? ["por-vencer", "No se pudo consultar Stellar.", "Intenta de nuevo en unos segundos o revisa la transacción con el enlace."]
+        : ["vencido", "Integridad no verificada.", "Los datos no coinciden con lo anclado en Stellar."];
   return (
-    <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950 dark:text-red-300">
-      <span aria-hidden="true">✕</span>
+    <p className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${CLASE_TONO[tono]}`}>
+      <IconoEstado tono={tono} className="mt-0.5 size-4 shrink-0" />
       <span>
-        <strong className="font-semibold">Integridad no verificada.</strong> Los datos no coinciden con lo anclado en Stellar.
+        <strong className="font-semibold">{titulo}</strong> {texto}
       </span>
     </p>
   );

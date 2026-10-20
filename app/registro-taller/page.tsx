@@ -14,14 +14,14 @@ export default function RegistroTallerPage() {
     <>
       <SiteHeader />
       <main className="mx-auto w-full max-w-xl px-4 py-12 sm:py-16">
-        <h1 className="text-3xl font-semibold tracking-tight">Registra tu taller</h1>
-        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
+        <h1 className="titulo">Registra tu taller</h1>
+        <p className="mt-2 text-texto-2">
           Solo los talleres verificados pueden firmar expedientes en QRuta. Envíanos los datos de tu negocio y un documento que
           lo acredite; si todo está en orden, te mandaremos una invitación por correo.
         </p>
-        <p className="mt-2 mb-8 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="mt-2 mb-8 text-sm text-texto-2">
           ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+          <Link href="/login" className="font-semibold text-enlace hover:underline">
             Inicia sesión
           </Link>
         </p>

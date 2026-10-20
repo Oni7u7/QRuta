@@ -47,15 +47,15 @@ export default function ConfirmarPage() {
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-4 py-12">
       {error ? (
-        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-6 dark:border-red-900 dark:bg-red-950">
-          <h1 className="text-lg font-semibold">No pudimos abrir tu invitación</h1>
-          <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{error}</p>
-          <Link href="/login" className="mt-4 inline-block text-sm font-medium text-teal-700 hover:underline dark:text-teal-400">
+        <div role="alert" className="tarjeta border-l-4 border-l-vencido p-6">
+          <h1 className="subtitulo">No pudimos abrir tu invitación</h1>
+          <p className="mt-2 text-sm text-texto">{error}</p>
+          <Link href="/login" className="mt-4 inline-block text-sm font-semibold text-enlace hover:underline">
             Ir a iniciar sesión
           </Link>
         </div>
       ) : (
-        <p role="status" className="text-center text-zinc-600 dark:text-zinc-400">
+        <p role="status" className="text-center text-texto-2">
           Abriendo tu invitación…
         </p>
       )}

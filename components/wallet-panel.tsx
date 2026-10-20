@@ -11,7 +11,7 @@ type Props =
   | { estado: "desconocido"; wallet: string };
 
 const boton =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 font-medium disabled:cursor-wait disabled:opacity-70";
+  "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 font-semibold disabled:cursor-wait disabled:opacity-70";
 
 // Conectar la wallet de Freighter o esperar su aprobación en el contrato.
 // Solo se envía a QRuta la dirección pública (G...); nunca llaves ni frases.
@@ -58,20 +58,20 @@ export function WalletPanel(props: Props) {
   }
 
   return (
-    <section aria-labelledby="wallet-titulo" className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+    <section aria-labelledby="wallet-titulo" className="rounded-2xl border border-linea p-6">
       {props.estado === "sin-wallet" ? (
         <>
           <h2 id="wallet-titulo" className="text-lg font-semibold">
             Conecta tu wallet para firmar
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-texto-2">
             Cada servicio se firma con tu wallet de Stellar en la extensión Freighter. QRuta solo guarda tu dirección pública;
             tu llave privada y tu frase de recuperación nunca salen de Freighter.
           </p>
-          <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-zinc-700 dark:text-zinc-300">
+          <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-texto">
             <li>
               Instala{" "}
-              <a href="https://www.freighter.app/" target="_blank" rel="noopener noreferrer" className="font-medium text-teal-700 hover:underline dark:text-teal-400">
+              <a href="https://www.freighter.app/" target="_blank" rel="noopener noreferrer" className="font-semibold text-enlace hover:underline">
                 Freighter<span className="sr-only"> (abre en otra pestaña)</span>
               </a>{" "}
               en este navegador y crea tu cuenta.
@@ -84,7 +84,7 @@ export function WalletPanel(props: Props) {
             type="button"
             onClick={conectar}
             disabled={ocupado}
-            className={`${boton} mt-5 bg-teal-600 text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400`}
+            className={`${boton} mt-5 bg-naranja text-grafito hover:brightness-95`}
           >
             {ocupado && <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
             {ocupado ? "Conectando y activando…" : "Conectar Freighter"}
@@ -95,10 +95,10 @@ export function WalletPanel(props: Props) {
           <h2 id="wallet-titulo" className="text-lg font-semibold">
             {props.estado === "pendiente" ? "Falta activar tu wallet" : "No pudimos comprobar tu wallet"}
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Wallet vinculada: <span className="font-mono font-medium text-zinc-900 dark:text-zinc-100">{abreviar(props.wallet)}</span>
+          <p className="mt-2 text-sm text-texto-2">
+            Wallet vinculada: <span className="font-mono font-semibold text-texto">{abreviar(props.wallet)}</span>
           </p>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-texto-2">
             {props.estado === "pendiente"
               ? "Tu wallet está vinculada, pero su activación en el contrato de QRuta no se completó. Vuelve a intentarlo; tarda unos segundos."
               : "Stellar no respondió a tiempo. Intenta de nuevo en unos segundos."}
@@ -107,14 +107,14 @@ export function WalletPanel(props: Props) {
             type="button"
             onClick={reintentar}
             disabled={ocupado}
-            className={`${boton} mt-5 border border-zinc-300 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900`}
+            className={`${boton} mt-5 border border-borde hover:bg-fondo`}
           >
             {ocupado ? "Activando…" : "Activar mi wallet"}
           </button>
         </>
       )}
       {error && (
-        <p role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className="mt-4 rounded-lg border border-vencido bg-superficie px-4 py-3 text-sm text-texto-vencido">
           {error}
         </p>
       )}

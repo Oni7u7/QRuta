@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { logout } from "@/app/login/actions";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { EstadoBadge } from "@/components/marca/estado-unidad";
 import { getAdmin, getTaller } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -16,29 +17,27 @@ export default async function TallerLayout({ children }: { children: React.React
   return (
     <>
       <SiteHeader />
-      <div className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className="border-b border-linea bg-fondo">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 text-sm">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{taller?.nombre ?? "Cuenta sin taller"}</span>
+            <span className="truncate font-semibold">{taller?.nombre ?? "Cuenta sin taller"}</span>
             {taller?.estado === "aprobado" && (
-              <span className="shrink-0 rounded-full bg-teal-100 px-2 py-0.5 text-xs font-medium text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-                Verificado
-              </span>
+              <EstadoBadge tono="vigente">Verificado</EstadoBadge>
             )}
           </div>
           <nav aria-label="Taller" className="flex items-center gap-4">
             {taller?.estado === "aprobado" && (
               <>
-                <Link href="/taller" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+                <Link href="/taller" className="text-texto-2 hover:text-texto">
                   Registrar
                 </Link>
-                <Link href="/taller/unidad" className="text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+                <Link href="/taller/unidad" className="text-texto-2 hover:text-texto">
                   Buscar unidad
                 </Link>
               </>
             )}
             <form action={logout}>
-              <button type="submit" className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+              <button type="submit" className="font-semibold text-texto-2 hover:text-texto">
                 Salir
               </button>
             </form>
@@ -61,9 +60,9 @@ function SinAcceso({ estado }: { estado?: string }) {
         ? "Tu taller está suspendido y no puede firmar expedientes. Contacta a QRuta."
         : "Esta cuenta no está asociada a ningún taller registrado en QRuta.";
   return (
-    <div role="alert" className="mx-auto max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-950">
-      <h1 className="text-lg font-semibold">Sin permiso para firmar</h1>
-      <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">{texto}</p>
+    <div role="alert" className="tarjeta mx-auto max-w-md border-l-4 border-l-por-vencer p-6">
+      <h1 className="subtitulo">Sin permiso para firmar</h1>
+      <p className="mt-2 text-sm text-texto">{texto}</p>
     </div>
   );
 }

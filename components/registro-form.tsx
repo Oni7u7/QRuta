@@ -39,18 +39,18 @@ export function RegistroForm() {
 
   if (enviada) {
     return (
-      <section aria-live="polite" className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <section aria-live="polite" className="rounded-2xl border border-linea p-6">
         <h2 className="text-lg font-semibold">Recibimos tu solicitud</h2>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-sm text-texto-2">
           QRuta revisará los datos y el documento de tu taller. Si todo está en orden, te enviaremos una invitación a{" "}
-          <span className="font-medium text-zinc-900 dark:text-zinc-100">{enviada}</span> para que crees tu contraseña.
+          <span className="font-semibold text-texto">{enviada}</span> para que crees tu contraseña.
         </p>
-        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-zinc-700 dark:text-zinc-300">
+        <ol className="mt-4 list-decimal space-y-1 pl-5 text-sm text-texto">
           <li>Revisamos tu solicitud (KYB).</li>
           <li>Te llega el correo de invitación y eliges tu contraseña.</li>
           <li>Inicias sesión, conectas tu wallet de Freighter y empiezas a firmar servicios.</li>
         </ol>
-        <Link href="/" className="mt-5 inline-block text-sm font-medium text-teal-700 hover:underline dark:text-teal-400">
+        <Link href="/" className="mt-5 inline-block text-sm font-semibold text-enlace hover:underline">
           Volver al inicio
         </Link>
       </section>
@@ -61,7 +61,7 @@ export function RegistroForm() {
     <form onSubmit={onSubmit} className="space-y-5" encType="multipart/form-data">
       {CAMPOS.map((c) => (
         <div key={c.name}>
-          <label htmlFor={c.name} className="text-sm font-medium">
+          <label htmlFor={c.name} className="text-sm font-semibold">
             {c.label}
           </label>
           <input
@@ -77,7 +77,7 @@ export function RegistroForm() {
             className={`${inputClass} ${"mayusculas" in c ? "uppercase" : ""}`}
           />
           {"ayuda" in c && (
-            <p id={`${c.name}-ayuda`} className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            <p id={`${c.name}-ayuda`} className="mt-1 text-xs text-texto-2">
               {c.ayuda}
             </p>
           )}
@@ -85,7 +85,7 @@ export function RegistroForm() {
       ))}
 
       <div>
-        <label htmlFor="domicilio" className="text-sm font-medium">
+        <label htmlFor="domicilio" className="text-sm font-semibold">
           Domicilio del taller
         </label>
         <textarea
@@ -101,7 +101,7 @@ export function RegistroForm() {
       </div>
 
       <div>
-        <label htmlFor="documento" className="text-sm font-medium">
+        <label htmlFor="documento" className="text-sm font-semibold">
           Documento del negocio (PDF)
         </label>
         <input
@@ -111,9 +111,9 @@ export function RegistroForm() {
           required
           accept="application/pdf,.pdf"
           aria-describedby="documento-ayuda"
-          className="mt-1 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-zinc-100 file:px-4 file:py-2.5 file:text-sm file:font-medium hover:file:bg-zinc-200 dark:file:bg-zinc-800 dark:hover:file:bg-zinc-700"
+          className="mt-1 block w-full text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-fondo file:px-4 file:py-2.5 file:text-sm file:font-semibold hover:file:bg-linea"
         />
-        <p id="documento-ayuda" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p id="documento-ayuda" className="mt-1 text-xs text-texto-2">
           Por ejemplo, tu constancia de situación fiscal. Solo PDF, máximo 4 MB. Solo QRuta podrá verlo.
         </p>
       </div>
@@ -124,9 +124,9 @@ export function RegistroForm() {
         <input id="sitio_web" name="sitio_web" type="text" tabIndex={-1} autoComplete="off" />
       </div>
 
-      <details className="rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
-        <summary className="cursor-pointer font-medium">Aviso de privacidad</summary>
-        <div className="mt-3 space-y-2 text-zinc-600 dark:text-zinc-400">
+      <details className="rounded-xl border border-linea p-4 text-sm">
+        <summary className="cursor-pointer font-semibold">Aviso de privacidad</summary>
+        <div className="mt-3 space-y-2 text-texto-2">
           <p>
             QRuta, proyecto en fase de prueba, es responsable de los datos que nos compartes en esta solicitud: nombre comercial,
             RFC, responsable, correo, teléfono, domicilio y el documento adjunto.
@@ -141,12 +141,12 @@ export function RegistroForm() {
       </details>
 
       <label className="flex items-start gap-3 text-sm">
-        <input id="acepto_privacidad" name="acepto_privacidad" type="checkbox" required className="mt-0.5 size-4 accent-teal-600" />
+        <input id="acepto_privacidad" name="acepto_privacidad" type="checkbox" required className="mt-0.5 size-4 accent-naranja" />
         <span>He leído y acepto el aviso de privacidad.</span>
       </label>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className="rounded-lg border border-vencido bg-superficie px-4 py-3 text-sm text-texto-vencido">
           {error}
         </p>
       )}
@@ -154,7 +154,7 @@ export function RegistroForm() {
       <button
         type="submit"
         disabled={enviando}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70 sm:w-auto dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
+        className="btn-primario w-full sm:w-auto"
       >
         {enviando && <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />}
         {enviando ? "Enviando…" : "Enviar solicitud"}

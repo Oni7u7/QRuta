@@ -49,11 +49,11 @@ function hoy() {
 }
 
 const SEGMENTO: Record<CheckValor, string> = {
-  ok: "peer-checked:border-teal-600 peer-checked:bg-teal-600 peer-checked:text-white dark:peer-checked:border-teal-500 dark:peer-checked:bg-teal-500 dark:peer-checked:text-zinc-950",
+  ok: "peer-checked:border-vigente peer-checked:bg-vigente peer-checked:text-blanco",
   atencion:
-    "peer-checked:border-amber-500 peer-checked:bg-amber-500 peer-checked:text-zinc-950 dark:peer-checked:border-amber-400 dark:peer-checked:bg-amber-400",
+    "peer-checked:border-por-vencer peer-checked:bg-por-vencer peer-checked:text-grafito",
   falla:
-    "peer-checked:border-red-600 peer-checked:bg-red-600 peer-checked:text-white dark:peer-checked:border-red-500 dark:peer-checked:bg-red-500 dark:peer-checked:text-zinc-950",
+    "peer-checked:border-vencido peer-checked:bg-vencido peer-checked:text-blanco",
 };
 
 // Formulario del taller con wallet aprobada. El registro va en dos pasos:
@@ -116,20 +116,20 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
 
   if (resultado) {
     return (
-      <section aria-live="polite" className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <section aria-live="polite" className="rounded-2xl border border-linea p-6">
         <div className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
+          <span className="flex size-9 items-center justify-center rounded-full bg-vigente text-blanco">
             <svg viewBox="0 0 24 24" className="size-5" aria-hidden="true">
               <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
           <div>
             <h2 className="font-semibold">Servicio firmado y registrado</h2>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400">Quedó en el contrato de QRuta en Stellar testnet.</p>
+            <p className="text-sm text-texto-2">Quedó en el contrato de QRuta en Stellar testnet.</p>
           </div>
         </div>
 
-        <dl className="mt-6 divide-y divide-zinc-200 text-sm dark:divide-zinc-800">
+        <dl className="mt-6 divide-y divide-linea text-sm">
           {[
             ["Placa", resultado.placa],
             ["Servicio", TIPO_LABEL[resultado.tipo]],
@@ -140,8 +140,8 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
             ["Wallet que firmó", abreviar(resultado.firmado_con)],
           ].map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 py-2.5">
-              <dt className="text-zinc-500 dark:text-zinc-400">{k}</dt>
-              <dd className="text-right font-medium">{v}</dd>
+              <dt className="text-texto-2">{k}</dt>
+              <dd className="text-right font-semibold">{v}</dd>
             </div>
           ))}
         </dl>
@@ -149,14 +149,14 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           <ChecklistView checklist={resultado.checklist} />
         </div>
         <div className="mt-4 text-sm">
-          <p className="text-zinc-500 dark:text-zinc-400">Hash SHA-256</p>
+          <p className="text-texto-2">Hash SHA-256</p>
           <p className="mt-1 font-mono text-xs break-all">{resultado.hash}</p>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <Link
             href={`/pantalla?p=${resultado.placa}`}
-            className="inline-flex h-11 items-center justify-center rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
+            className="btn-primario"
           >
             Abrir pantalla de la unidad
           </Link>
@@ -164,7 +164,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
             href={resultado.stellar_expert}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-11 items-center justify-center rounded-lg border border-zinc-300 px-5 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900"
+            className="btn-secundario"
           >
             Ver transacción
             <span className="sr-only"> en Stellar Expert (abre en otra pestaña)</span>
@@ -174,14 +174,14 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           href={resultado.contrato}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 inline-block text-sm text-zinc-500 underline-offset-4 hover:underline dark:text-zinc-400"
+          className="mt-4 inline-block text-sm text-texto-2 underline-offset-4 hover:underline"
         >
           Ver el contrato de QRuta en Stellar Expert<span className="sr-only"> (abre en otra pestaña)</span>
         </a>
         <button
           type="button"
           onClick={() => setResultado(null)}
-          className="mt-4 text-sm font-medium text-teal-700 hover:underline dark:text-teal-400"
+          className="mt-4 text-sm font-semibold text-enlace hover:underline"
         >
           Registrar otro servicio
         </button>
@@ -193,7 +193,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
     <form onSubmit={onSubmit} className="space-y-6">
       <div className="grid gap-5 sm:grid-cols-2">
         <div>
-          <label htmlFor="placa" className="text-sm font-medium">
+          <label htmlFor="placa" className="text-sm font-semibold">
             Placa de la unidad
           </label>
           <input
@@ -209,7 +209,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           />
         </div>
         <div>
-          <label htmlFor="kilometraje" className="text-sm font-medium">
+          <label htmlFor="kilometraje" className="text-sm font-semibold">
             Kilometraje
           </label>
           <input
@@ -226,7 +226,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           />
         </div>
         <div>
-          <label htmlFor="tipo" className="text-sm font-medium">
+          <label htmlFor="tipo" className="text-sm font-semibold">
             Tipo de servicio
           </label>
           <select id="tipo" name="tipo" required defaultValue="preventivo" className={inputClass}>
@@ -238,7 +238,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           </select>
         </div>
         <div>
-          <label htmlFor="fecha" className="text-sm font-medium">
+          <label htmlFor="fecha" className="text-sm font-semibold">
             Fecha del servicio
           </label>
           <input
@@ -255,9 +255,9 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
       </div>
 
       <fieldset>
-        <legend className="text-sm font-medium">Checklist de revisión</legend>
-        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Marca el estado de cada componente.</p>
-        <div className="mt-3 divide-y divide-zinc-200 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+        <legend className="text-sm font-semibold">Checklist de revisión</legend>
+        <p className="mt-0.5 text-xs text-texto-2">Marca el estado de cada componente.</p>
+        <div className="mt-3 divide-y divide-linea rounded-xl border border-linea">
           {CHECKLIST_ITEMS.map(({ key, label }) => (
             <div key={key} role="radiogroup" aria-label={label} className="flex items-center justify-between gap-3 px-3 py-2.5">
               <span className="text-sm">{label}</span>
@@ -274,7 +274,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
                       className="peer sr-only"
                     />
                     <span
-                      className={`inline-flex h-9 min-w-[4.5rem] items-center justify-center rounded-lg border border-zinc-300 px-2 text-xs font-medium text-zinc-600 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-teal-600 dark:border-zinc-700 dark:text-zinc-300 ${SEGMENTO[v]}`}
+                      className={`inline-flex h-9 min-w-[4.5rem] items-center justify-center rounded-lg border border-borde px-2 text-xs font-semibold text-texto-2 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-texto ${SEGMENTO[v]}`}
                     >
                       {CHECK_LABEL[v]}
                     </span>
@@ -285,7 +285,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           ))}
         </div>
         {hayFallas && (
-          <p role="status" className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+          <p role="status" className="mt-3 rounded-lg bg-por-vencer px-3 py-2 text-sm text-grafito">
             Hay componentes con falla. Quedarán visibles en la verificación pública; registra un servicio correctivo cuando se
             reparen.
           </p>
@@ -293,8 +293,8 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
       </fieldset>
 
       <div>
-        <label htmlFor="notas" className="text-sm font-medium">
-          Notas <span className="font-normal text-zinc-500 dark:text-zinc-400">(opcional, solo visibles para talleres)</span>
+        <label htmlFor="notas" className="text-sm font-semibold">
+          Notas <span className="font-normal text-texto-2">(opcional, solo visibles para talleres)</span>
         </label>
         <textarea
           id="notas"
@@ -307,30 +307,30 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
       </div>
 
       {error && (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className="rounded-lg border border-vencido bg-superficie px-4 py-3 text-sm text-texto-vencido">
           {error}
         </p>
       )}
 
-      <div className="rounded-lg bg-zinc-50 px-4 py-3 text-sm dark:bg-zinc-900">
-        <span className="text-zinc-500 dark:text-zinc-400">Firma como </span>
-        <span className="font-medium">{tallerNombre}</span>
-        <span className="text-zinc-500 dark:text-zinc-400"> con tu wallet </span>
-        <span className="font-mono font-medium">{abreviar(wallet)}</span>
-        <span className="ml-1 text-teal-700 dark:text-teal-400">· aprobada</span>
+      <div className="rounded-lg bg-fondo px-4 py-3 text-sm">
+        <span className="text-texto-2">Firma como </span>
+        <span className="font-semibold">{tallerNombre}</span>
+        <span className="text-texto-2"> con tu wallet </span>
+        <span className="font-mono font-semibold">{abreviar(wallet)}</span>
+        <span className="ml-1 text-enlace">· aprobada</span>
       </div>
 
       <button
         type="submit"
         disabled={paso !== null}
-        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70 sm:w-auto dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
+        className="btn-primario w-full sm:w-auto"
       >
         {paso && (
           <span className="size-4 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden="true" />
         )}
         {paso ? TEXTO_PASO[paso] : "Firmar y registrar"}
       </button>
-      <p role="status" aria-live="polite" className="text-xs text-zinc-500 dark:text-zinc-400">
+      <p role="status" aria-live="polite" className="text-xs text-texto-2">
         {paso === "firmando"
           ? "Revisa la ventana de Freighter y aprueba la transacción."
           : "Freighter te pedirá firmar. El hash del expediente (incluido el checklist) quedará en el contrato de QRuta y ya no se podrá modificar."}

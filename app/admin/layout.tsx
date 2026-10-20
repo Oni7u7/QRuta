@@ -18,18 +18,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <>
       <SiteHeader />
-      <div className="border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className="border-b border-linea bg-fondo">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 text-sm">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{admin?.nombre ?? "Sin acceso"}</span>
+            <span className="truncate font-semibold">{admin?.nombre ?? "Sin acceso"}</span>
             {admin && (
-              <span className="shrink-0 rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white dark:bg-zinc-100 dark:text-zinc-900">
+              <span className="shrink-0 rounded-full bg-grafito px-2 py-0.5 text-xs font-semibold text-blanco dark:bg-blanco dark:text-grafito">
                 Administrador
               </span>
             )}
           </div>
           <form action={logout}>
-            <button type="submit" className="font-medium text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+            <button type="submit" className="font-semibold text-texto-2 hover:text-texto">
               Salir
             </button>
           </form>
@@ -43,9 +43,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
 function SinAcceso() {
   return (
-    <div role="alert" className="mx-auto max-w-md rounded-2xl border border-amber-300 bg-amber-50 p-6 dark:border-amber-800 dark:bg-amber-950">
-      <h1 className="text-lg font-semibold">Sin acceso</h1>
-      <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-300">Esta sección es solo para administradores de QRuta.</p>
+    <div role="alert" className="tarjeta mx-auto max-w-md border-l-4 border-l-por-vencer p-6">
+      <h1 className="subtitulo">Sin acceso</h1>
+      <p className="mt-2 text-sm text-texto">Esta sección es solo para administradores de QRuta.</p>
     </div>
   );
 }

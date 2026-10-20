@@ -10,7 +10,7 @@ export function ContrasenaForm() {
   return (
     <form action={action} className="space-y-5">
       <div>
-        <label htmlFor="password" className="text-sm font-medium">
+        <label htmlFor="password" className="text-sm font-semibold">
           Contraseña nueva
         </label>
         <input
@@ -24,19 +24,19 @@ export function ContrasenaForm() {
           aria-describedby="password-ayuda"
           className={inputClass}
         />
-        <p id="password-ayuda" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p id="password-ayuda" className="mt-1 text-xs text-texto-2">
           Al menos 10 caracteres.
         </p>
       </div>
       <div>
-        <label htmlFor="confirmacion" className="text-sm font-medium">
+        <label htmlFor="confirmacion" className="text-sm font-semibold">
           Repite la contraseña
         </label>
         <input id="confirmacion" name="confirmacion" type="password" required maxLength={72} autoComplete="new-password" className={inputClass} />
       </div>
 
       {state.error && (
-        <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <p role="alert" className="rounded-lg border border-vencido bg-superficie px-4 py-3 text-sm text-texto-vencido">
           {state.error}
         </p>
       )}
@@ -44,7 +44,7 @@ export function ContrasenaForm() {
       <button
         type="submit"
         disabled={pending}
-        className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-teal-600 px-5 font-medium text-white hover:bg-teal-700 disabled:cursor-wait disabled:opacity-70 dark:bg-teal-500 dark:text-zinc-950 dark:hover:bg-teal-400"
+        className="btn-primario w-full"
       >
         {pending ? "Guardando…" : "Guardar y entrar"}
       </button>

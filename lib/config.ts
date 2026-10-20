@@ -38,6 +38,9 @@ export const CHECK_LABEL: Record<CheckValor, string> = {
 // Documento de la solicitud de alta. Vercel rechaza peticiones de más de 4.5 MB: el PDF se limita a 4 MB.
 export const PDF_MAX_BYTES = 4 * 1024 * 1024;
 
+// Una unidad vigente se muestra "Por vencer" cuando le quedan estos días o menos (solo presentación).
+export const DIAS_POR_VENCER = 15;
+
 // Segundos que dura cada token TOTP del QR.
 export const TOTP_STEP = 15;
 
