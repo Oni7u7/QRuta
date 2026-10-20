@@ -32,19 +32,13 @@ export function tieneFallas(checklist: Checklist | null) {
   return !!checklist && Object.values(checklist).includes("falla");
 }
 
-export function IntegridadBadge({ datos, stellar, contrato = false }: { datos: boolean; stellar: boolean | null; contrato?: boolean }) {
+// Solo avisa cuando algo no cuadra: si la integridad se verificó bien, no se muestra nada.
+export function IntegridadBadge({ datos, stellar }: { datos: boolean; stellar: boolean | null }) {
+  if (datos && stellar) return null;
   const [tono, titulo, texto]: [TonoEstado, string, string] =
-    datos && stellar
-      ? [
-          "vigente",
-          "Integridad verificada en Stellar.",
-          contrato
-            ? "El taller firmó este expediente con su wallet y el contrato de QRuta lo tiene registrado con estos mismos datos."
-            : "Los datos coinciden con el hash anclado en la transacción.",
-        ]
-      : datos && stellar === null
-        ? ["por-vencer", "No se pudo consultar Stellar.", "Intenta de nuevo en unos segundos o revisa la transacción con el enlace."]
-        : ["vencido", "Integridad no verificada.", "Los datos no coinciden con lo anclado en Stellar."];
+    datos && stellar === null
+      ? ["por-vencer", "No se pudo consultar Stellar.", "Intenta de nuevo en unos segundos o revisa la transacción con el enlace."]
+      : ["vencido", "Integridad no verificada.", "Los datos no coinciden con lo anclado en Stellar."];
   return (
     <p className={`flex items-start gap-2 rounded-lg px-3 py-2 text-sm ${CLASE_TONO[tono]}`}>
       <IconoEstado tono={tono} className="mt-0.5 size-4 shrink-0" />

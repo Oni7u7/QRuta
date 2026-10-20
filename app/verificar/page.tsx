@@ -95,7 +95,7 @@ function Resultado({ v }: { v: Verificacion }) {
 
       {(v.estado === "VIGENTE" || v.estado === "VENCIDO") && (
         <section className="mt-6" aria-labelledby="detalle">
-          <IntegridadBadge {...v.integridad} contrato={v.firma === "contrato"} />
+          <IntegridadBadge {...v.integridad} />
 
           {v.checklist && (
             <div className="mt-6">

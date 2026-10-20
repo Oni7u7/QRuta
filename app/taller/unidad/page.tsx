@@ -132,7 +132,7 @@ export default async function UnidadPage({ searchParams }: { searchParams: Promi
                   )}
 
                   <div className="mt-4">
-                    <IntegridadBadge {...e.integridad} contrato={e.firma === "contrato"} />
+                    <IntegridadBadge {...e.integridad} />
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-mono break-all text-texto-2">{e.hash}</span>
