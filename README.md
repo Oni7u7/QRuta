@@ -1,47 +1,213 @@
 # QRuta
 
-Expediente de mantenimiento verificable para unidades de transporte. Un taller registra un servicio, el hash SHA-256 del expediente se ancla en **Stellar testnet** y la pantalla de la unidad muestra un QR con un token TOTP que cambia cada 15 s. Cualquiera lo escanea y ve si el mantenimiento está vigente.
+Expediente de mantenimiento verificable para unidades de transporte (microbús). Un **taller verificado** registra cada servicio con un checklist y lo **firma con su wallet de Stellar (Freighter)**; un **contrato inteligente (Soroban)** guarda la huella SHA-256 del expediente; la **pantalla de la unidad** muestra un QR que cambia cada 15 s y **cualquiera** lo escanea para ver si el mantenimiento está vigente. Una foto vieja del QR da "Código expirado".
 
-La API pública de verificación (`/api/v1/verificar`) es el producto; la web es un cliente más.
+- Producción: https://qruta.vercel.app
+- Red: **Stellar testnet** (los registros son de demostración, sin validez legal)
+- Contrato `qruta-registry`: `CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH` ([Stellar Expert](https://stellar.expert/explorer/testnet/contract/CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH))
+- Checklist del demo: [`docs/DEMO.md`](docs/DEMO.md)
+
+## Cómo funciona
+
+1. **Alta del taller (KYB):** el taller llena `/registro-taller` con sus datos y un PDF. Un admin lo revisa en `/admin` y lo aprueba; QRuta crea la cuenta y le envía una invitación por correo para elegir su contraseña.
+2. **Wallet:** el taller conecta Freighter en `/taller`. Como su KYB ya está aprobado, QRuta aprueba esa wallet en el contrato en ese momento.
+3. **Registro:** el taller captura placa, tipo, fecha, kilometraje, checklist y notas. QRuta calcula el hash y prepara la llamada `registrar` del contrato; el taller **la firma en Freighter**; QRuta comprueba que sea exactamente esa transacción y la envía. El contrato rechaza firmas de wallets no aprobadas.
+4. **Verificación:** `/pantalla?p=PLACA` muestra el QR (token TOTP de 15 s). Al escanearlo, `/verificar` comprueba el token, recalcula el hash con los datos guardados y lo compara con el registro del contrato: **Integridad verificada en Stellar ✓**.
+
+En la blockchain solo van el hash, la placa, el tipo, las fechas y la wallet que firmó. Las notas, el kilometraje y el detalle del checklist se quedan en Supabase. Nadie, ni QRuta, puede firmar por un taller: la llave vive en su Freighter.
 
 ## Stack
 
 - Next.js 15 (App Router) + TypeScript + Tailwind CSS
-- Supabase (solo Postgres, acceso desde el servidor con service role)
-- `@stellar/stellar-sdk`, `otplib`, `qrcode.react`, `zod`
-
-## Desarrollo local
-
-1. Instala dependencias:
-   ```bash
-   npm install
-   ```
-2. Crea un proyecto en [Supabase](https://supabase.com) y ejecuta `supabase/schema.sql` en el SQL Editor.
-3. Crea una cuenta ancla en Stellar testnet (por ejemplo en el [Stellar Laboratory](https://lab.stellar.org/account/create?$=network$id=testnet)) y fondéala con Friendbot.
-4. Copia `.env.example` a `.env.local` y completa los valores:
-
-   | Variable | Descripción |
-   | --- | --- |
-   | `STELLAR_SECRET` | Clave secreta (`S…`) de la cuenta ancla en testnet |
-   | `SUPABASE_URL` | URL del proyecto Supabase |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Service role key (solo servidor, nunca con prefijo `NEXT_PUBLIC_`) |
-   | `NEXT_PUBLIC_BASE_URL` | URL pública de la app; se usa para construir el enlace del QR |
-
-5. Arranca:
-   ```bash
-   npm run dev
-   ```
+- Supabase: Postgres (con RLS y sin políticas; todo pasa por el servidor), Auth (correo y contraseña), Storage (PDF privados)
+- Stellar testnet: contrato Soroban en Rust (`soroban-sdk` 29), `@stellar/stellar-sdk` 17, `@stellar/freighter-api` 6
+- `otplib` (QR TOTP), `qrcode.react`, `zod`
+- Despliegue: Vercel
 
 ## Estructura
 
 ```
-app/            páginas y route handlers
-components/     componentes de UI compartidos
-lib/            config, hash, TOTP, Stellar, Supabase, placas
-supabase/       schema.sql
+app/                     páginas y rutas de la API
+  admin/                 panel de administración (solicitudes y talleres)
+  taller/                área del taller (registro firmado, historial por placa)
+  registro-taller/       solicitud pública de alta
+  verificar/, pantalla/  verificación pública y QR de la unidad
+  auth/confirmar/, cuenta/contrasena/   alta por invitación
+components/              componentes de interfaz
+contracts/qruta-registry/  contrato Soroban (Rust) y sus pruebas
+lib/                     lógica del servidor: contrato, hash, TOTP, Supabase, permisos
+scripts/                 scripts de administración (crear admin/taller, KYB on-chain)
+supabase/                schema.sql y migraciones
+docs/                    documentación del equipo y checklist del demo
 ```
 
-> Documentación de la API, deploy en Vercel y checklist del demo:# Funcionamiento del Frontend de QRuta
+## Puesta en marcha local
+
+### 1. Dependencias
+
+```bash
+npm install
+```
+
+### 2. Supabase
+
+1. Crea un proyecto en [Supabase](https://supabase.com).
+2. En **SQL Editor** ejecuta `supabase/schema.sql` (base nueva). Si tu base viene de una versión anterior, ejecuta en orden las migraciones de `supabase/migrations/` que te falten (002, 003, 004).
+3. En **Authentication**:
+   - **Sign In / Providers:** desactiva *Allow new users to sign up* (las cuentas las crea QRuta).
+   - **URL Configuration:** *Site URL* = tu URL pública (`https://qruta.vercel.app` en producción) y en *Redirect URLs* agrega `http://localhost:3000/**` y `https://qruta.vercel.app/**`.
+   - **Emails → SMTP Settings:** configura un SMTP propio (por ejemplo, Gmail con contraseña de aplicación). Sin él, Supabase solo entrega correos a los miembros del equipo del proyecto y las invitaciones no llegan a los talleres. Aun sin SMTP, `/admin` ofrece un enlace de invitación para copiar.
+
+### 3. Cuenta admin de Stellar
+
+Crea una cuenta en testnet y fondéala con Friendbot (por ejemplo en [Stellar Lab](https://lab.stellar.org/account/create?$=network$id=testnet)). Su clave secreta (`S…`) es `STELLAR_SECRET`: será el **admin del contrato** (aprueba y suspende wallets de talleres). Guárdala en un gestor de contraseñas.
+
+### 4. Contrato `qruta-registry`
+
+Requiere Rust 1.91+, el target `wasm32v1-none` y la [Stellar CLI](https://developers.stellar.org/docs/tools/cli) 28.x (`cargo install --locked stellar-cli`).
+
+```bash
+cd contracts
+cargo test                       # pruebas del contrato
+stellar contract build           # genera target/wasm32v1-none/release/qruta_registry.wasm
+
+# La llave se lee de .env.local; no queda en el historial de la terminal.
+export STELLAR_ACCOUNT="$(grep '^STELLAR_SECRET=' ../.env.local | cut -d= -f2-)"
+stellar contract deploy \
+  --wasm target/wasm32v1-none/release/qruta_registry.wasm \
+  --source-account "$STELLAR_ACCOUNT" --network testnet --alias qruta-registry \
+  -- --admin <DIRECCION_PUBLICA_G_DE_TU_CUENTA_ADMIN>
+unset STELLAR_ACCOUNT
+```
+
+El comando imprime el ID del contrato (`C…`): ese es `QRUTA_CONTRACT_ID`.
+
+### 5. Variables de entorno
+
+Copia `.env.example` a `.env.local` y complétalo:
+
+| Variable | Qué es | ¿Secreta? |
+| --- | --- | --- |
+| `STELLAR_SECRET` | Clave `S…` de la cuenta admin del contrato | **Sí** |
+| `SUPABASE_URL` | URL del proyecto Supabase | No |
+| `SUPABASE_ANON_KEY` | Clave anon/publishable (sesiones de talleres y admins) | No (pero solo la usa el servidor) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service role de Supabase | **Sí** |
+| `QRUTA_CONTRACT_ID` | ID `C…` del contrato `qruta-registry` | No |
+| `NEXT_PUBLIC_BASE_URL` | URL pública de la app; va dentro del QR y de los enlaces de invitación | No |
+
+Ninguna variable secreta lleva el prefijo `NEXT_PUBLIC_`. `.env.local` está en `.gitignore` y `.vercelignore`.
+
+Para escanear el QR desde un celular en local, `NEXT_PUBLIC_BASE_URL` debe ser la IP de tu computadora en la red (`http://192.168.x.x:3000`) y hay que arrancar con `npm run dev -- -H 0.0.0.0`.
+
+### 6. Primer administrador
+
+```bash
+node --env-file=.env.local scripts/crear-admin.mts --email admin@ejemplo.com --nombre "Nombre del admin"
+```
+
+Imprime una contraseña inicial una sola vez (o usa `--password '...'`). Con ella entras en `/login` y llegas a `/admin`.
+
+### 7. Arrancar
+
+```bash
+npm run dev
+```
+
+Si un `next build` falla con errores raros de `.next` (por ejemplo `vendor-chunks`), detén el servidor de desarrollo y borra la caché: `rm -rf .next`. No corras `next build` mientras `next dev` está encendido: comparten la carpeta `.next`.
+
+## Operación
+
+### Alta de talleres (flujo normal, desde la web)
+
+1. El taller envía su solicitud en `/registro-taller` (datos del negocio, RFC, teléfono, domicilio y un PDF de hasta 4 MB).
+2. El admin la abre en `/admin`, compara los datos con el PDF y presiona **Aprobar y enviar invitación** (o **Rechazar** con un motivo).
+3. El taller recibe el correo, elige su contraseña y entra a `/taller`. Si el correo no llega, en la solicitud aprobada está **Generar enlace de acceso** para compartirlo por otro medio.
+4. El taller conecta Freighter (en **Testnet**); QRuta aprueba su wallet en el contrato y ya puede firmar.
+
+### Suspender o reactivar un taller
+
+En `/admin` → **Talleres** → **Suspender** / **Reactivar**. Se firma en el contrato y se actualiza la base. Un taller suspendido no puede firmar ni volver a activar su wallet; sus expedientes anteriores siguen siendo válidos.
+
+### Scripts de respaldo (consola)
+
+```bash
+# Crear un taller sin pasar por la solicitud (imprime su contraseña una vez)
+node --env-file=.env.local scripts/crear-taller.mts --email taller@ejemplo.com --nombre "Taller X" --rfc ABCD800101XY1
+
+# Estado / aprobar / suspender la wallet de un taller en el contrato
+node --env-file=.env.local scripts/taller-contrato.mts estado    --email taller@ejemplo.com
+node --env-file=.env.local scripts/taller-contrato.mts aprobar   --email taller@ejemplo.com
+node --env-file=.env.local scripts/taller-contrato.mts suspender --email taller@ejemplo.com
+```
+
+En zsh, no escribas los valores entre `< >`: son redirecciones de la terminal.
+
+### Guía rápida de Freighter para talleres
+
+1. Instala [Freighter](https://www.freighter.app/) en Chrome, Brave, Edge o Firefox (la firma se hace desde computadora).
+2. Crea una cuenta y **guarda tu frase de recuperación** en un lugar seguro. Nadie puede recuperarla por ti, ni QRuta.
+3. Cambia la red a **Testnet**.
+4. En QRuta, `/taller` → **Conectar Freighter** (tarda unos 25 s la primera vez: se fondea y se activa la wallet).
+5. Al registrar un servicio, Freighter te pedirá aprobar la transacción.
+
+## Despliegue en Vercel (CLI)
+
+```bash
+npm i -g vercel
+vercel login
+vercel link                          # crea el proyecto la primera vez
+vercel env add STELLAR_SECRET production
+vercel env add SUPABASE_URL production
+vercel env add SUPABASE_ANON_KEY production
+vercel env add SUPABASE_SERVICE_ROLE_KEY production
+vercel env add QRUTA_CONTRACT_ID production
+vercel env add NEXT_PUBLIC_BASE_URL production   # https://qruta.vercel.app (sin "/" al final)
+vercel --prod
+```
+
+- Cada `vercel env add` pide el valor de forma interactiva (no lo pases con `echo`, queda en el historial).
+- Después de cambiar `NEXT_PUBLIC_BASE_URL`, vuelve a desplegar: se incrusta en el build.
+- En Supabase, la **Site URL** de producción debe ser `https://qruta.vercel.app` para que los enlaces del correo funcionen en cualquier dispositivo.
+- Si la terminal no encuentra `vercel` tras instalarlo y usas zsh con HyDE (`ZDOTDIR=~/.config/zsh`), agrega `export PATH="$HOME/.npm-global/bin:$PATH"` en `~/.config/zsh/user.zsh`.
+
+## Seguridad (resumen)
+
+- Las llaves privadas de los talleres nunca llegan a QRuta: firman en Freighter. QRuta valida que la transacción firmada sea exactamente la que preparó antes de enviarla.
+- `STELLAR_SECRET` y la service role solo existen en el servidor; ninguna llega al navegador (auditado).
+- Tablas con RLS y sin políticas; los PDF del KYB están en un bucket privado y solo los ve un admin, servidos por QRuta.
+- Cookies de sesión `httpOnly`, `secure` en producción y `SameSite=Lax`. Cabeceras de seguridad: `frame-ancestors 'self'`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`.
+- Formularios validados en el servidor con `zod`; la solicitud pública tiene límites por correo y por hora y un campo trampa contra bots.
+
+## Limitaciones conocidas
+
+- **Testnet:** se reinicia de vez en cuando; al pasar, hay que volver a desplegar el contrato, fondear cuentas y aprobar wallets.
+- **`/api/pantalla/[placa]` es pública:** cualquiera que la llame obtiene el token vigente. Una foto vieja sí queda bloqueada; quitar esta ruta (QR generado por un ESP32 en la unidad) está en el roadmap.
+- **Costo por registro en el contrato:** ~0.56 XLM (renta de almacenamiento por 120 días). Gratis en testnet; para mainnet convendría reducir el TTL o que QRuta patrocine la comisión.
+- **Activar la wallet tarda ~25 s** (Friendbot + transacción del contrato).
+- **El servidor firma las aprobaciones de wallets** con la cuenta admin; firmarlas desde el Freighter del admin está en el roadmap.
+- Los expedientes anteriores al contrato (DEM001, ADB345, etc.) se siguen verificando por el memo de su transacción.
+
+## Entregables antes del sábado 28 de noviembre de 2026
+
+Mejoras de la página web (sin cambios al contrato). Estado: **pendiente** en todas.
+
+| # | Mejora | Qué incluye | Estimado |
+|---|---|---|---|
+| 1 | **Pantalla vinculada a la unidad** | Un admin genera un código de emparejamiento por unidad; la pantalla lo usa una vez y recibe su credencial de dispositivo. `/api/pantalla/[placa]` solo entrega el token a dispositivos vinculados (cierra la limitación descrita arriba). En `/verificar`, la placa se muestra en grande con "Compárala con la placa de la unidad". Límite de solicitudes en `/api/pantalla` y `/verificar`. Requiere una migración nueva en Supabase. | ~2 días |
+| 2 | **Doble factor para admins y bitácora** | Segundo factor al iniciar sesión como admin. Registro de quién aprobó, rechazó, suspendió o reactivó a qué taller y cuándo, visible en `/admin`. | ~1 día |
+| 3 | **Avisos de vencimiento** | Correo cuando una unidad está a `DIAS_POR_VENCER` días o menos de vencer. Mientras no existan cuentas de concesionario, se envía al correo de contacto registrado para la unidad. | ~1 día |
+| 4 | **Reportes del pasajero** | Desde `/verificar`: "esta unidad no tiene QR" o "sale vencida", con placa, motivo y comentario opcional. Los reportes se revisan en `/admin`. Con límite de solicitudes y campo trampa contra bots. | ~1 día |
+| 5 | **Evidencias del servicio** | Fotos o factura adjuntas al expediente, en un bucket privado. Su hash entra en la huella del expediente que ya se ancla, sin cambiar el contrato. | ~1-2 días |
+| 6 | **Pruebas automáticas de la app** | Pruebas dentro del repo para verificación, pantalla vinculada, registro y panel admin, que se corren con un solo comando. Se agregan a la par de cada mejora. | ~1-2 días |
+| 7 | **App multi-red** | Variable `STELLAR_NETWORK` (`testnet` \| `mainnet`) que define en `lib/config.ts` las URLs de Horizon y Soroban RPC, la passphrase y los enlaces de Stellar Expert. Quita `Networks.TESTNET` del resto del código, hace que Freighter exija la red configurada, usa Friendbot solo en testnet y adapta los textos según la red. | ~1 día |
+
+Fuera de esta entrega: cuentas de concesionario, contrato v2, comisiones patrocinadas y corrección de expedientes. El detalle está en [`docs/roadmap-mainnet.md`](docs/roadmap-mainnet.md).
+
+---
+
+# Documentación del proyecto
+
+# Funcionamiento del Frontend de QRuta
 
 ## 1. Objetivo
 
