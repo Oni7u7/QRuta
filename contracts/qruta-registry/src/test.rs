@@ -383,3 +383,113 @@ fn solo_el_admin_anula() {
     assert!(r.is_err());
     assert_eq!(client.anulacion(&h), None);
 }
+
+#[test]
+fn el_taller_corrige_su_expediente_y_el_nuevo_toma_su_lugar() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let original = hash(e, 1);
+    let corregido = hash(e, 2);
+    p.client.registrar(&p.taller, &placa(e, "COR001"), &original, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+
+    p.client.corregir_expediente(
+        &p.taller, &original, &corregido, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA), &motivo(e, "Kilometraje mal capturado"),
+    );
+    // Firmó el taller, no QRuta.
+    assert_eq!(e.auths()[0].0, p.taller);
+
+    assert_eq!(p.client.correccion(&original), Some(corregido.clone()));
+    assert_eq!(p.client.anulacion(&original).unwrap().motivo, motivo(e, "Kilometraje mal capturado"));
+    let est = p.client.estado(&placa(e, "COR001")).unwrap();
+    assert_eq!(est.hash, corregido);
+    // La placa se conserva.
+    assert_eq!(est.registro.placa, placa(e, "COR001"));
+}
+
+#[test]
+fn corregir_un_servicio_viejo_no_desplaza_al_actual() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let viejo = hash(e, 1);
+    let actual = hash(e, 2);
+    p.client.registrar(&p.taller, &placa(e, "COR002"), &viejo, &tipo(e, "correctivo"), &(FECHA - 20 * DIA), &(FECHA + 10 * DIA));
+    p.client.registrar(&p.taller, &placa(e, "COR002"), &actual, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+
+    p.client.corregir_expediente(
+        &p.taller, &viejo, &hash(e, 3), &tipo(e, "correctivo"), &(FECHA - 20 * DIA), &(FECHA + 10 * DIA), &motivo(e, "Notas"),
+    );
+    assert_eq!(p.client.estado(&placa(e, "COR002")).unwrap().hash, actual);
+}
+
+#[test]
+fn otro_taller_no_puede_corregir() {
+    let p = preparar();
+    let e = &p.env;
+    let otro = Address::generate(e);
+    p.client.aprobar_taller(&p.taller);
+    p.client.aprobar_taller(&otro);
+    let h = hash(e, 1);
+    p.client.registrar(&p.taller, &placa(e, "COR003"), &h, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    let r = p.client.try_corregir_expediente(
+        &otro, &h, &hash(e, 2), &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA), &motivo(e, "Intento"),
+    );
+    assert_eq!(r, Err(Ok(Error::NoEsDelTaller)));
+    assert_eq!(p.client.correccion(&h), None);
+}
+
+#[test]
+fn corregir_valida_estado_del_anterior_y_del_nuevo() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let h = hash(e, 1);
+    let hasta = FECHA + 90 * DIA;
+    let pre = tipo(e, "preventivo");
+    let m = motivo(e, "Corrección");
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &h, &hash(e, 2), &pre, &FECHA, &hasta, &m),
+        Err(Ok(Error::ExpedienteNoExiste))
+    );
+    p.client.registrar(&p.taller, &placa(e, "COR004"), &h, &pre, &FECHA, &hasta);
+    // El nuevo pasa por las mismas validaciones que registrar.
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &h, &hash(e, 2), &pre, &FECHA, &(FECHA + 400 * DIA), &m),
+        Err(Ok(Error::VigenciaInvalida))
+    );
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &h, &h, &pre, &FECHA, &hasta, &m),
+        Err(Ok(Error::ExpedienteDuplicado))
+    );
+    p.client.corregir_expediente(&p.taller, &h, &hash(e, 2), &pre, &FECHA, &hasta, &m);
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &h, &hash(e, 3), &pre, &FECHA, &hasta, &m),
+        Err(Ok(Error::ExpedienteYaCorregido))
+    );
+}
+
+#[test]
+fn no_se_corrige_un_expediente_anulado_ni_con_taller_suspendido() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let pre = tipo(e, "preventivo");
+    let hasta = FECHA + 90 * DIA;
+    let anulado = hash(e, 1);
+    p.client.registrar(&p.taller, &placa(e, "COR005"), &anulado, &pre, &FECHA, &hasta);
+    p.client.anular_expediente(&anulado, &motivo(e, "Fraude"));
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &anulado, &hash(e, 2), &pre, &FECHA, &hasta, &motivo(e, "Ocultar")),
+        Err(Ok(Error::ExpedienteAnulado))
+    );
+
+    let vigente = hash(e, 3);
+    p.client.registrar(&p.taller, &placa(e, "COR006"), &vigente, &pre, &FECHA, &hasta);
+    p.client.suspender_taller(&p.taller);
+    assert_eq!(
+        p.client.try_corregir_expediente(&p.taller, &vigente, &hash(e, 4), &pre, &FECHA, &hasta, &motivo(e, "Corrección")),
+        Err(Ok(Error::TallerNoAprobado))
+    );
+    assert_eq!(p.client.correccion(&vigente), None);
+}

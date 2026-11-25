@@ -30,6 +30,7 @@ enum Clave {
     Ultimo(String),
     // Claves nuevas en v2: los registros anteriores no cambian de formato.
     Anulado(BytesN<32>),
+    CorregidoPor(BytesN<32>),
 }
 
 /// Lo que queda on-chain de cada expediente.
@@ -78,6 +79,8 @@ pub enum Error {
     ExpedienteNoExiste = 8,
     ExpedienteAnulado = 9,
     MotivoInvalido = 10,
+    NoEsDelTaller = 11,
+    ExpedienteYaCorregido = 12,
 }
 
 #[contractevent]
@@ -119,6 +122,16 @@ pub struct ExpedienteAnulado {
     #[topic]
     pub placa: String,
     pub hash: BytesN<32>,
+    pub motivo: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpedienteCorregido {
+    #[topic]
+    pub placa: String,
+    pub anterior: BytesN<32>,
+    pub nuevo: BytesN<32>,
     pub motivo: String,
 }
 
@@ -217,7 +230,7 @@ fn guardar_registro(
         Some(actual) if Some(actual.clone()) == sustituye => true,
         Some(actual) => {
             let previo: Option<Registro> = env.storage().persistent().get(&Clave::Expediente(actual));
-            previo.map_or(true, |p| fecha >= p.fecha)
+            previo.is_none_or(|p| fecha >= p.fecha)
         }
     };
     if reemplazar {
@@ -330,6 +343,56 @@ impl QrutaRegistry {
 
         ExpedienteAnulado { placa: registro.placa, hash, motivo }.publish(&env);
         Ok(())
+    }
+
+    /// El taller que firmó un expediente registra una versión corregida (por ejemplo, un kilometraje
+    /// mal capturado). El anterior queda anulado con el motivo y enlazado al nuevo; si era el estado
+    /// de la placa, el nuevo toma su lugar. La placa no cambia: un error de placa se anula y se registra de nuevo.
+    #[allow(clippy::too_many_arguments)]
+    pub fn corregir_expediente(
+        env: Env,
+        taller: Address,
+        anterior: BytesN<32>,
+        hash: BytesN<32>,
+        tipo: Symbol,
+        fecha: u64,
+        vigente_hasta: u64,
+        motivo: String,
+    ) -> Result<(), Error> {
+        taller.require_auth();
+        if motivo.len() < 3 || motivo.len() > 200 {
+            return Err(Error::MotivoInvalido);
+        }
+        let previo: Registro =
+            env.storage().persistent().get(&Clave::Expediente(anterior.clone())).ok_or(Error::ExpedienteNoExiste)?;
+        if previo.taller != taller {
+            return Err(Error::NoEsDelTaller);
+        }
+        let clave_corregido = Clave::CorregidoPor(anterior.clone());
+        if env.storage().persistent().has(&clave_corregido) {
+            return Err(Error::ExpedienteYaCorregido);
+        }
+        let clave_anulado = Clave::Anulado(anterior.clone());
+        if env.storage().persistent().has(&clave_anulado) {
+            return Err(Error::ExpedienteAnulado);
+        }
+
+        let placa = previo.placa;
+        guardar_registro(&env, taller, placa.clone(), hash.clone(), tipo, fecha, vigente_hasta, Some(anterior.clone()))?;
+
+        let anulacion = Anulacion { motivo: motivo.clone(), ledger: env.ledger().sequence() };
+        env.storage().persistent().set(&clave_anulado, &anulacion);
+        env.storage().persistent().set(&clave_corregido, &hash);
+        extender(&env, &clave_anulado);
+        extender(&env, &clave_corregido);
+
+        ExpedienteCorregido { placa, anterior, nuevo: hash, motivo }.publish(&env);
+        Ok(())
+    }
+
+    /// Hash del expediente que corrigió a este, si lo hay.
+    pub fn correccion(env: Env, hash: BytesN<32>) -> Option<BytesN<32>> {
+        env.storage().persistent().get(&Clave::CorregidoPor(hash))
     }
 
     /// Anulación de un expediente, si la tiene.
