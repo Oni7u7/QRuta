@@ -162,6 +162,74 @@ fn dias_vigencia(env: &Env, tipo: &Symbol) -> Option<u64> {
     }
 }
 
+/// Valida y guarda un expediente (la firma del taller se exige antes de llamarla).
+/// `sustituye`: expediente que este corrige; si era el estado de la placa, el nuevo toma su lugar.
+#[allow(clippy::too_many_arguments)]
+fn guardar_registro(
+    env: &Env,
+    taller: Address,
+    placa: String,
+    hash: BytesN<32>,
+    tipo: Symbol,
+    fecha: u64,
+    vigente_hasta: u64,
+    sustituye: Option<BytesN<32>>,
+) -> Result<(), Error> {
+    let aprobado: bool = env.storage().persistent().get(&Clave::Taller(taller.clone())).unwrap_or(false);
+    if !aprobado {
+        return Err(Error::TallerNoAprobado);
+    }
+    if placa.len() < 3 || placa.len() > 10 {
+        return Err(Error::PlacaInvalida);
+    }
+    let dias = dias_vigencia(env, &tipo).ok_or(Error::TipoInvalido)?;
+    if fecha > env.ledger().timestamp() + TOLERANCIA_FECHA {
+        return Err(Error::FechaFutura);
+    }
+    // La app cuenta la vigencia hasta el final del día: como máximo (días + 1) desde la fecha.
+    if vigente_hasta <= fecha || vigente_hasta - fecha > (dias + 1) * DIA {
+        return Err(Error::VigenciaInvalida);
+    }
+    let clave_exp = Clave::Expediente(hash.clone());
+    if env.storage().persistent().has(&clave_exp) {
+        return Err(Error::ExpedienteDuplicado);
+    }
+
+    let registro = Registro {
+        placa: placa.clone(),
+        taller: taller.clone(),
+        tipo,
+        fecha,
+        vigente_hasta,
+        ledger: env.ledger().sequence(),
+    };
+    env.storage().persistent().set(&clave_exp, &registro);
+    // Los datos viven al menos hasta que vence el servicio (antes se archivaban a los 120 días).
+    let ttl = ttl_para_vigencia(env, vigente_hasta);
+    extender_hasta(env, &clave_exp, ttl);
+    extender_hasta(env, &Clave::Taller(taller.clone()), ttl);
+
+    // El estado de la unidad lo define el servicio más reciente por fecha
+    // (si empatan, el último registrado), igual que en la app. Una corrección ocupa el lugar del corregido.
+    let clave_ult = Clave::Ultimo(placa.clone());
+    let reemplazar = match env.storage().persistent().get::<_, BytesN<32>>(&clave_ult) {
+        None => true,
+        Some(actual) if Some(actual.clone()) == sustituye => true,
+        Some(actual) => {
+            let previo: Option<Registro> = env.storage().persistent().get(&Clave::Expediente(actual));
+            previo.map_or(true, |p| fecha >= p.fecha)
+        }
+    };
+    if reemplazar {
+        env.storage().persistent().set(&clave_ult, &hash);
+    }
+    extender_hasta(env, &clave_ult, ttl);
+    env.storage().instance().extend_ttl(ttl, ttl);
+
+    ExpedienteRegistrado { placa, hash, taller, vigente_hasta }.publish(env);
+    Ok(())
+}
+
 #[contractimpl]
 impl QrutaRegistry {
     /// Se ejecuta una sola vez al desplegar: fija la cuenta admin de QRuta.
@@ -209,58 +277,7 @@ impl QrutaRegistry {
     ) -> Result<(), Error> {
         // La firma es del taller, no de QRuta.
         taller.require_auth();
-
-        if !Self::es_aprobado(env.clone(), taller.clone()) {
-            return Err(Error::TallerNoAprobado);
-        }
-        if placa.len() < 3 || placa.len() > 10 {
-            return Err(Error::PlacaInvalida);
-        }
-        let dias = dias_vigencia(&env, &tipo).ok_or(Error::TipoInvalido)?;
-        if fecha > env.ledger().timestamp() + TOLERANCIA_FECHA {
-            return Err(Error::FechaFutura);
-        }
-        // La app cuenta la vigencia hasta el final del día: como máximo (días + 1) desde la fecha.
-        if vigente_hasta <= fecha || vigente_hasta - fecha > (dias + 1) * DIA {
-            return Err(Error::VigenciaInvalida);
-        }
-        let clave_exp = Clave::Expediente(hash.clone());
-        if env.storage().persistent().has(&clave_exp) {
-            return Err(Error::ExpedienteDuplicado);
-        }
-
-        let registro = Registro {
-            placa: placa.clone(),
-            taller: taller.clone(),
-            tipo,
-            fecha,
-            vigente_hasta,
-            ledger: env.ledger().sequence(),
-        };
-        env.storage().persistent().set(&clave_exp, &registro);
-        // Los datos viven al menos hasta que vence el servicio (antes se archivaban a los 120 días).
-        let ttl = ttl_para_vigencia(&env, vigente_hasta);
-        extender_hasta(&env, &clave_exp, ttl);
-        extender_hasta(&env, &Clave::Taller(taller.clone()), ttl);
-
-        // El estado de la unidad lo define el servicio más reciente por fecha
-        // (si empatan, el último registrado), igual que en la app.
-        let clave_ult = Clave::Ultimo(placa.clone());
-        let reemplazar = match env.storage().persistent().get::<_, BytesN<32>>(&clave_ult) {
-            None => true,
-            Some(anterior) => {
-                let previo: Option<Registro> = env.storage().persistent().get(&Clave::Expediente(anterior));
-                previo.map_or(true, |p| fecha >= p.fecha)
-            }
-        };
-        if reemplazar {
-            env.storage().persistent().set(&clave_ult, &hash);
-        }
-        extender_hasta(&env, &clave_ult, ttl);
-        env.storage().instance().extend_ttl(ttl, ttl);
-
-        ExpedienteRegistrado { placa, hash, taller, vigente_hasta }.publish(&env);
-        Ok(())
+        guardar_registro(&env, taller, placa, hash, tipo, fecha, vigente_hasta, None)
     }
 
     /// Mantiene en la red el estado de una placa: extiende el último expediente, el puntero de la placa
