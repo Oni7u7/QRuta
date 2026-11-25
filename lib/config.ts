@@ -102,9 +102,6 @@ export function sorobanRpcUrl(red: Red = RED) {
   return url;
 }
 
-// Pendientes de migrar a RED_STELLAR / sorobanRpcUrl().
-export const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
-
 // ID del contrato qruta-registry (C...) en la red configurada. Solo se lee en el servidor.
 export function contractId() {
   const id = process.env.QRUTA_CONTRACT_ID;

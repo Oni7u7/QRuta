@@ -2,7 +2,7 @@
 // la librería se carga bajo demanda para que nunca se ejecute en el servidor.
 // QRuta nunca ve la llave privada: Freighter firma dentro de la extensión y devuelve la transacción firmada.
 import { abreviar } from "@/components/ui";
-import { TESTNET_PASSPHRASE } from "./config";
+import { RED_STELLAR } from "./config";
 
 export class FreighterError extends Error {}
 
@@ -17,11 +17,14 @@ async function exigirInstalada() {
   return f;
 }
 
-async function exigirTestnet(f: Awaited<ReturnType<typeof freighter>>) {
+// Freighter debe estar en la misma red que QRuta (NEXT_PUBLIC_STELLAR_NETWORK).
+async function exigirRed(f: Awaited<ReturnType<typeof freighter>>) {
   const red = await f.getNetworkDetails();
   if (red.error) throw new FreighterError("No se pudo leer la red de Freighter.");
-  if (red.networkPassphrase !== TESTNET_PASSPHRASE) {
-    throw new FreighterError(`Freighter está en ${red.network || "otra red"}. Cámbiala a Testnet y vuelve a intentarlo.`);
+  if (red.networkPassphrase !== RED_STELLAR.passphrase) {
+    throw new FreighterError(
+      `Freighter está en ${red.network || "otra red"}. Cámbiala a ${RED_STELLAR.nombre} y vuelve a intentarlo.`,
+    );
   }
 }
 
@@ -30,21 +33,21 @@ export async function conectarFreighter(): Promise<string> {
   const f = await exigirInstalada();
   const acceso = await f.requestAccess();
   if (acceso.error || !acceso.address) throw new FreighterError("No diste permiso a QRuta en Freighter.");
-  await exigirTestnet(f);
+  await exigirRed(f);
   return acceso.address;
 }
 
 // Firma la transacción con la cuenta vinculada. Falla si Freighter tiene otra cuenta activa.
 export async function firmarConFreighter(xdr: string, direccion: string): Promise<string> {
   const f = await exigirInstalada();
-  await exigirTestnet(f);
+  await exigirRed(f);
   const activa = await f.getAddress();
   if (activa.address && activa.address !== direccion) {
     throw new FreighterError(
       `Freighter tiene activa la cuenta ${abreviar(activa.address)}. Cambia a ${abreviar(direccion)}, que es la wallet de tu taller.`,
     );
   }
-  const r = await f.signTransaction(xdr, { networkPassphrase: TESTNET_PASSPHRASE, address: direccion });
+  const r = await f.signTransaction(xdr, { networkPassphrase: RED_STELLAR.passphrase, address: direccion });
   if (r.error || !r.signedTxXdr) throw new FreighterError("Cancelaste la firma en Freighter. No se registró nada.");
   return r.signedTxXdr;
 }
