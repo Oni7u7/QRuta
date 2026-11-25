@@ -92,7 +92,9 @@ Copia `.env.example` a `.env.local` y complétalo:
 | `SUPABASE_URL` | URL del proyecto Supabase | No |
 | `SUPABASE_ANON_KEY` | Clave anon/publishable (sesiones de talleres y admins) | No (pero solo la usa el servidor) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Service role de Supabase | **Sí** |
-| `QRUTA_CONTRACT_ID` | ID `C…` del contrato `qruta-registry` | No |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | Red de Stellar: `testnet` o `mainnet`. Vacía = `testnet`. Define Horizon, Soroban RPC, passphrase, Stellar Expert y la red que se exige en Freighter | No |
+| `STELLAR_RPC_URL` | Soroban RPC propio. Opcional en testnet; **obligatorio en mainnet** (SDF no ofrece uno público) | Puede serlo si la URL incluye la llave del proveedor |
+| `QRUTA_CONTRACT_ID` | ID `C…` del contrato `qruta-registry` en esa red | No |
 | `NEXT_PUBLIC_BASE_URL` | URL pública de la app; va dentro del QR y de los enlaces de invitación | No |
 
 Ninguna variable secreta lleva el prefijo `NEXT_PUBLIC_`. `.env.local` está en `.gitignore` y `.vercelignore`.
