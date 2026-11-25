@@ -271,3 +271,42 @@ fn el_entorno_de_prueba_permite_ttl_de_mas_de_120_dias() {
     let p = preparar();
     assert!(p.env.storage().max_ttl() > 180 * 17_280);
 }
+
+#[test]
+fn renovar_extiende_los_datos_de_la_placa() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let ahora = e.ledger().timestamp();
+    let h = hash(e, 1);
+    p.client.registrar(&p.taller, &placa(e, "REN001"), &h, &tipo(e, "verificacion"), &ahora, &(ahora + 180 * DIA));
+
+    // Pasan 100 días: el TTL bajó y renovar lo vuelve a cubrir hasta el vencimiento.
+    let ledger = e.ledger().sequence();
+    e.ledger().set_sequence_number(ledger + 100 * 17_280);
+    e.ledger().set_timestamp(ahora + 100 * DIA);
+    let antes = ttl(&p, &Clave::Expediente(h.clone()));
+
+    let aplicado = p.client.renovar(&placa(e, "REN001"));
+    assert!(aplicado >= ((80 * DIA / 5) as u32));
+    assert!(ttl(&p, &Clave::Expediente(h.clone())) > antes);
+    assert!(ttl(&p, &Clave::Expediente(h)) >= aplicado);
+    assert!(ttl(&p, &Clave::Ultimo(placa(e, "REN001"))) >= aplicado);
+    assert!(ttl(&p, &Clave::Taller(p.taller.clone())) >= aplicado);
+}
+
+#[test]
+fn renovar_no_pide_firma() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    p.client.registrar(&p.taller, &placa(e, "REN002"), &hash(e, 1), &tipo(e, "correctivo"), &FECHA, &(FECHA + 30 * DIA));
+    p.client.renovar(&placa(e, "REN002"));
+    assert_eq!(e.auths().len(), 0);
+}
+
+#[test]
+fn renovar_una_placa_sin_registro_falla() {
+    let p = preparar();
+    assert_eq!(p.client.try_renovar(&placa(&p.env, "NADA01")), Err(Ok(Error::PlacaSinRegistro)));
+}

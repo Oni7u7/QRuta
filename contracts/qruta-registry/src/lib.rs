@@ -64,6 +64,7 @@ pub enum Error {
     VigenciaInvalida = 4,
     ExpedienteDuplicado = 5,
     FechaFutura = 6,
+    PlacaSinRegistro = 7,
 }
 
 #[contractevent]
@@ -88,6 +89,15 @@ pub struct ExpedienteRegistrado {
     pub hash: BytesN<32>,
     pub taller: Address,
     pub vigente_hasta: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnidadRenovada {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub ttl: u32,
 }
 
 #[contract]
@@ -229,6 +239,28 @@ impl QrutaRegistry {
 
         ExpedienteRegistrado { placa, hash, taller, vigente_hasta }.publish(&env);
         Ok(())
+    }
+
+    /// Mantiene en la red el estado de una placa: extiende el último expediente, el puntero de la placa
+    /// y la aprobación de su taller para que no se archiven antes de que venza el servicio.
+    /// Cualquiera puede llamarla (quien la llama paga la comisión). Devuelve el TTL aplicado, en ledgers.
+    pub fn renovar(env: Env, placa: String) -> Result<u32, Error> {
+        let clave_ult = Clave::Ultimo(placa.clone());
+        let hash: BytesN<32> = env.storage().persistent().get(&clave_ult).ok_or(Error::PlacaSinRegistro)?;
+        let clave_exp = Clave::Expediente(hash.clone());
+        let registro: Registro = env.storage().persistent().get(&clave_exp).ok_or(Error::PlacaSinRegistro)?;
+
+        let ttl = ttl_para_vigencia(&env, registro.vigente_hasta);
+        extender_hasta(&env, &clave_ult, ttl);
+        extender_hasta(&env, &clave_exp, ttl);
+        let clave_taller = Clave::Taller(registro.taller);
+        if env.storage().persistent().has(&clave_taller) {
+            extender_hasta(&env, &clave_taller, ttl);
+        }
+        env.storage().instance().extend_ttl(ttl, ttl);
+
+        UnidadRenovada { placa, hash, ttl }.publish(&env);
+        Ok(ttl)
     }
 
     /// Expediente por su hash (para comprobar la integridad de cualquier servicio, no solo el último).
