@@ -28,6 +28,8 @@ enum Clave {
     Taller(Address),
     Expediente(BytesN<32>),
     Ultimo(String),
+    // Claves nuevas en v2: los registros anteriores no cambian de formato.
+    Anulado(BytesN<32>),
 }
 
 /// Lo que queda on-chain de cada expediente.
@@ -42,6 +44,14 @@ pub struct Registro {
     /// Fin de la vigencia (unix, segundos).
     pub vigente_hasta: u64,
     /// Ledger en que se registró.
+    pub ledger: u32,
+}
+
+/// Por qué y cuándo se anuló un expediente.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Anulacion {
+    pub motivo: String,
     pub ledger: u32,
 }
 
@@ -65,6 +75,9 @@ pub enum Error {
     ExpedienteDuplicado = 5,
     FechaFutura = 6,
     PlacaSinRegistro = 7,
+    ExpedienteNoExiste = 8,
+    ExpedienteAnulado = 9,
+    MotivoInvalido = 10,
 }
 
 #[contractevent]
@@ -98,6 +111,15 @@ pub struct UnidadRenovada {
     pub placa: String,
     pub hash: BytesN<32>,
     pub ttl: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpedienteAnulado {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub motivo: String,
 }
 
 #[contract]
@@ -261,6 +283,41 @@ impl QrutaRegistry {
 
         UnidadRenovada { placa, hash, ttl }.publish(&env);
         Ok(ttl)
+    }
+
+    /// Anula un expediente (por ejemplo, un servicio registrado con datos falsos). Solo el admin.
+    /// El registro se conserva como evidencia; si era el estado vigente de la placa, la placa queda
+    /// sin servicio vigente hasta que un taller registre uno nuevo.
+    pub fn anular_expediente(env: Env, hash: BytesN<32>, motivo: String) -> Result<(), Error> {
+        admin(&env).require_auth();
+        if motivo.len() < 3 || motivo.len() > 200 {
+            return Err(Error::MotivoInvalido);
+        }
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash.clone())).ok_or(Error::ExpedienteNoExiste)?;
+        let clave_anulado = Clave::Anulado(hash.clone());
+        if env.storage().persistent().has(&clave_anulado) {
+            return Err(Error::ExpedienteAnulado);
+        }
+
+        env.storage()
+            .persistent()
+            .set(&clave_anulado, &Anulacion { motivo: motivo.clone(), ledger: env.ledger().sequence() });
+        extender(&env, &clave_anulado);
+
+        let clave_ult = Clave::Ultimo(registro.placa.clone());
+        if env.storage().persistent().get::<_, BytesN<32>>(&clave_ult) == Some(hash.clone()) {
+            env.storage().persistent().remove(&clave_ult);
+        }
+        extender_instancia(&env);
+
+        ExpedienteAnulado { placa: registro.placa, hash, motivo }.publish(&env);
+        Ok(())
+    }
+
+    /// Anulación de un expediente, si la tiene.
+    pub fn anulacion(env: Env, hash: BytesN<32>) -> Option<Anulacion> {
+        env.storage().persistent().get(&Clave::Anulado(hash))
     }
 
     /// Expediente por su hash (para comprobar la integridad de cualquier servicio, no solo el último).

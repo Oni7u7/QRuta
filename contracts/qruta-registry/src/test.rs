@@ -310,3 +310,76 @@ fn renovar_una_placa_sin_registro_falla() {
     let p = preparar();
     assert_eq!(p.client.try_renovar(&placa(&p.env, "NADA01")), Err(Ok(Error::PlacaSinRegistro)));
 }
+
+fn motivo(env: &Env, s: &str) -> String {
+    String::from_str(env, s)
+}
+
+#[test]
+fn el_admin_anula_un_expediente_y_la_placa_queda_sin_estado() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let h = hash(e, 1);
+    p.client.registrar(&p.taller, &placa(e, "ANU001"), &h, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+
+    p.client.anular_expediente(&h, &motivo(e, "Servicio no realizado"));
+
+    let a = p.client.anulacion(&h).unwrap();
+    assert_eq!(a.motivo, motivo(e, "Servicio no realizado"));
+    // El registro se conserva como evidencia, pero ya no define el estado de la placa.
+    assert!(p.client.expediente(&h).is_some());
+    assert_eq!(p.client.estado(&placa(e, "ANU001")), None);
+}
+
+#[test]
+fn anular_un_servicio_viejo_no_cambia_el_estado_actual() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let viejo = hash(e, 1);
+    let actual = hash(e, 2);
+    p.client.registrar(&p.taller, &placa(e, "ANU002"), &viejo, &tipo(e, "correctivo"), &(FECHA - 20 * DIA), &(FECHA + 10 * DIA));
+    p.client.registrar(&p.taller, &placa(e, "ANU002"), &actual, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+
+    p.client.anular_expediente(&viejo, &motivo(e, "Duplicado"));
+    assert_eq!(p.client.estado(&placa(e, "ANU002")).unwrap().hash, actual);
+}
+
+#[test]
+fn anular_valida_motivo_existencia_y_que_no_este_anulado() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let h = hash(e, 1);
+    assert_eq!(p.client.try_anular_expediente(&h, &motivo(e, "No existe")), Err(Ok(Error::ExpedienteNoExiste)));
+    p.client.registrar(&p.taller, &placa(e, "ANU003"), &h, &tipo(e, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(p.client.try_anular_expediente(&h, &motivo(e, "")), Err(Ok(Error::MotivoInvalido)));
+    p.client.anular_expediente(&h, &motivo(e, "Fraude"));
+    assert_eq!(p.client.try_anular_expediente(&h, &motivo(e, "Otra vez")), Err(Ok(Error::ExpedienteAnulado)));
+}
+
+#[test]
+fn solo_el_admin_anula() {
+    let env = Env::default();
+    env.ledger().set_timestamp(FECHA + DIA);
+    let admin = Address::generate(&env);
+    let taller = Address::generate(&env);
+    let id = env.register(QrutaRegistry, (&admin,));
+    let client = QrutaRegistryClient::new(&env, &id);
+    env.mock_all_auths();
+    client.aprobar_taller(&taller);
+    let h = hash(&env, 1);
+    client.registrar(&taller, &placa(&env, "ANU004"), &h, &tipo(&env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+
+    // El taller firma, pero anular exige la firma del admin.
+    let m = motivo(&env, "Me equivoqué");
+    let r = client
+        .mock_auths(&[MockAuth {
+            address: &taller,
+            invoke: &MockAuthInvoke { contract: &id, fn_name: "anular_expediente", args: (&h, &m).into_val(&env), sub_invokes: &[] },
+        }])
+        .try_anular_expediente(&h, &m);
+    assert!(r.is_err());
+    assert_eq!(client.anulacion(&h), None);
+}
