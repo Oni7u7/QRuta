@@ -103,8 +103,6 @@ export function sorobanRpcUrl(red: Red = RED) {
 }
 
 // Pendientes de migrar a RED_STELLAR / sorobanRpcUrl().
-export const STELLAR_HORIZON_URL = RED_STELLAR.horizonUrl;
-export const SOROBAN_RPC_URL = "https://soroban-testnet.stellar.org";
 export const TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 
 // ID del contrato qruta-registry (C...) en la red configurada. Solo se lee en el servidor.

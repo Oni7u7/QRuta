@@ -3,7 +3,6 @@ import {
   Address,
   Contract,
   Keypair,
-  Networks,
   StrKey,
   Transaction,
   TransactionBuilder,
@@ -12,11 +11,18 @@ import {
   scValToNative,
   xdr,
 } from "@stellar/stellar-sdk";
-import { SOROBAN_RPC_URL, contractId, type Tipo } from "./config";
+import { RED_STELLAR, contractId, sorobanRpcUrl, type Tipo } from "./config";
 
 // Cliente del contrato qruta-registry (solo servidor).
 
-const server = new rpc.Server(SOROBAN_RPC_URL);
+// Se crea al primer uso: si falta STELLAR_RPC_URL en mainnet, falla la petición y no la carga del módulo.
+let cliente: rpc.Server | undefined;
+function servidor() {
+  cliente ??= new rpc.Server(sorobanRpcUrl());
+  return cliente;
+}
+
+const PASSPHRASE = RED_STELLAR.passphrase;
 
 // Tiempo que tiene el taller para firmar en Freighter antes de que la transacción caduque.
 const TIEMPO_PARA_FIRMAR_S = 300;
@@ -72,7 +78,7 @@ function argsRegistrar(a: ArgsRegistro): xdr.ScVal[] {
 
 export async function cuentaExiste(direccion: string) {
   try {
-    await server.getAccount(direccion);
+    await servidor().getAccount(direccion);
     return true;
   } catch {
     return false;
@@ -82,7 +88,7 @@ export async function cuentaExiste(direccion: string) {
 // En testnet, fondea la cuenta con Friendbot si todavía no existe.
 export async function asegurarCuentaTestnet(direccion: string) {
   if (await cuentaExiste(direccion)) return "existente" as const;
-  await server.fundAddress(direccion);
+  await servidor().fundAddress(direccion);
   return "fondeada" as const;
 }
 
@@ -91,11 +97,11 @@ export async function asegurarCuentaTestnet(direccion: string) {
 async function leer(fn: string, ...args: xdr.ScVal[]) {
   // La simulación no consume la secuencia: basta una cuenta fuente cualquiera.
   const fuente = new Account(Keypair.random().publicKey(), "0");
-  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: Networks.TESTNET })
+  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: PASSPHRASE })
     .addOperation(new Contract(contractId()).call(fn, ...args))
     .setTimeout(30)
     .build();
-  const sim = await server.simulateTransaction(tx);
+  const sim = await servidor().simulateTransaction(tx);
   if (rpc.Api.isSimulationError(sim)) throw new Error(`Simulación de ${fn} falló: ${sim.error.slice(0, 200)}`);
   return sim.result ? scValToNative(sim.result.retval) : undefined;
 }
@@ -132,17 +138,17 @@ export async function expedienteOnChain(hashHex: string): Promise<RegistroOnChai
 export async function prepararRegistro(a: ArgsRegistro): Promise<string> {
   let cuenta;
   try {
-    cuenta = await server.getAccount(a.taller);
+    cuenta = await servidor().getAccount(a.taller);
   } catch {
-    throw new SorobanError("Tu wallet no existe en testnet. Vuelve a conectarla para fondearla.", 409);
+    throw new SorobanError(`Tu wallet no existe en ${RED_STELLAR.nombre}. Vuelve a conectarla.`, 409);
   }
-  const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: Networks.TESTNET })
+  const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: PASSPHRASE })
     .addOperation(new Contract(contractId()).call("registrar", ...argsRegistrar(a)))
     .setTimeout(TIEMPO_PARA_FIRMAR_S)
     .build();
   try {
     // Simula, calcula recursos y comisión, y adjunta la autorización.
-    const preparada = await server.prepareTransaction(tx);
+    const preparada = await servidor().prepareTransaction(tx);
     return preparada.toXDR();
   } catch (err) {
     const detalle = err instanceof Error ? err.message : String(err);
@@ -157,7 +163,7 @@ export async function prepararRegistro(a: ArgsRegistro): Promise<string> {
 export function validarRegistroFirmado(signedXdr: string, a: ArgsRegistro): Transaction {
   let tx: Transaction;
   try {
-    const parsed = TransactionBuilder.fromXDR(signedXdr, Networks.TESTNET);
+    const parsed = TransactionBuilder.fromXDR(signedXdr, PASSPHRASE);
     if (!(parsed instanceof Transaction)) throw new Error("fee bump");
     tx = parsed;
   } catch {
@@ -188,7 +194,7 @@ export function validarRegistroFirmado(signedXdr: string, a: ArgsRegistro): Tran
 
 // Envía la transacción y espera a que la red la confirme. Devuelve el hash de la transacción.
 export async function enviarYConfirmar(tx: Transaction): Promise<string> {
-  const envio = await server.sendTransaction(tx);
+  const envio = await servidor().sendTransaction(tx);
   if (envio.status === "ERROR") {
     const detalle = envio.errorResult?.toXDR("base64") ?? "";
     console.error("Soroban rechazó la transacción:", envio.hash, detalle.slice(0, 120));
@@ -197,7 +203,7 @@ export async function enviarYConfirmar(tx: Transaction): Promise<string> {
   if (envio.status === "TRY_AGAIN_LATER") {
     throw new SorobanError("La red está ocupada. Intenta de nuevo en unos segundos.", 503);
   }
-  const final = await server.pollTransaction(envio.hash, { attempts: 20 });
+  const final = await servidor().pollTransaction(envio.hash, { attempts: 20 });
   if (final.status === rpc.Api.GetTransactionStatus.SUCCESS) return envio.hash;
   if (final.status === rpc.Api.GetTransactionStatus.FAILED) {
     console.error("Transacción fallida en el contrato:", envio.hash);
@@ -216,14 +222,14 @@ function adminKeypair() {
 
 async function invocarComoAdmin(fn: "aprobar_taller" | "suspender_taller", direccion: string): Promise<string> {
   const admin = adminKeypair();
-  const cuenta = await server.getAccount(admin.publicKey());
-  const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: Networks.TESTNET })
+  const cuenta = await servidor().getAccount(admin.publicKey());
+  const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: PASSPHRASE })
     .addOperation(new Contract(contractId()).call(fn, new Address(direccion).toScVal()))
     .setTimeout(60)
     .build();
   let preparada: Transaction;
   try {
-    preparada = await server.prepareTransaction(tx);
+    preparada = await servidor().prepareTransaction(tx);
   } catch (err) {
     console.error(`Simulación de ${fn} falló:`, err instanceof Error ? err.message.slice(0, 200) : err);
     throw new SorobanError("No se pudo preparar la operación en el contrato. Intenta de nuevo.", 502);

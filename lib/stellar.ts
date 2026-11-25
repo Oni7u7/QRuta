@@ -1,5 +1,5 @@
 import { Keypair } from "@stellar/stellar-sdk";
-import { STELLAR_HORIZON_URL } from "./config";
+import { RED_STELLAR } from "./config";
 
 // Anclaje por memo: así se registraron los expedientes anteriores al contrato (anclaje "memo").
 // Los registros nuevos van al contrato qruta-registry (lib/soroban.ts); aquí solo se verifican los anteriores.
@@ -16,7 +16,7 @@ function anchorPublicKey() {
 export async function fetchAnchoredHash(txHash: string, timeoutMs = 2000): Promise<string | false | null> {
   if (!/^[0-9a-f]{64}$/.test(txHash)) return false;
   try {
-    const res = await fetch(`${STELLAR_HORIZON_URL}/transactions/${txHash}`, {
+    const res = await fetch(`${RED_STELLAR.horizonUrl}/transactions/${txHash}`, {
       signal: AbortSignal.timeout(timeoutMs),
       // Una transacción confirmada nunca cambia: se puede cachear.
       next: { revalidate: 86_400 },
