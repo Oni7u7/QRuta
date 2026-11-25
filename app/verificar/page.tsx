@@ -4,7 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { abreviar } from "@/components/ui";
 import { SiteHeader } from "@/components/site-header";
 import { EstadoUnidad, IconoEstado, type TonoEstado } from "@/components/marca/estado-unidad";
-import { DIAS_POR_VENCER, TIPO_LABEL } from "@/lib/config";
+import { DIAS_POR_VENCER, RED_STELLAR, TIPO_LABEL } from "@/lib/config";
 import { verificar, type Verificacion } from "@/lib/verificar";
 
 export const metadata: Metadata = {
@@ -184,8 +184,8 @@ function Resultado({ v }: { v: Verificacion }) {
           )}
           <p className="mt-3 text-xs text-texto-2">
             {v.firma === "contrato"
-              ? "El taller firmó este expediente con su wallet y el contrato de QRuta en Stellar testnet guarda su hash. Si el expediente se alterara, el hash ya no coincidiría."
-              : "El hash está publicado en el memo de la transacción en Stellar testnet. Si el expediente se alterara, el hash ya no coincidiría."}
+              ? `El taller firmó este expediente con su wallet y el contrato de QRuta en Stellar ${RED_STELLAR.nombre} guarda su hash. Si el expediente se alterara, el hash ya no coincidiría.`
+              : `El hash está publicado en el memo de la transacción en Stellar ${RED_STELLAR.nombre}. Si el expediente se alterara, el hash ya no coincidiría.`}
           </p>
         </section>
       )}

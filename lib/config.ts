@@ -94,6 +94,12 @@ export function configRed(red: Red): ConfigRed {
 // Next solo lleva al navegador las variables NEXT_PUBLIC_ que se leen de forma literal.
 export const RED: Red = parseRed(process.env.NEXT_PUBLIC_STELLAR_NETWORK);
 export const RED_STELLAR: ConfigRed = configRed(RED);
+export const ES_TESTNET = RED === "testnet";
+
+// Aviso que se muestra en el pie y en la landing según la red.
+export const AVISO_RED = ES_TESTNET
+  ? "Opera en Stellar testnet: los registros son de demostración y no tienen validez legal."
+  : "Opera en la red principal de Stellar.";
 
 // URL de Soroban RPC (solo servidor). STELLAR_RPC_URL la reemplaza; en mainnet es obligatoria.
 export function sorobanRpcUrl(red: Red = RED) {

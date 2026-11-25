@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { RED_STELLAR } from "@/lib/config";
 import { FreighterError, conectarFreighter } from "@/lib/freighter";
 import { abreviar } from "./ui";
 
@@ -77,7 +78,7 @@ export function WalletPanel(props: Props) {
               en este navegador y crea tu cuenta.
             </li>
             <li>Guarda tu frase de recuperación en un lugar seguro.</li>
-            <li>En Freighter, cambia la red a <strong>Testnet</strong>.</li>
+            <li>En Freighter, cambia la red a <strong>{RED_STELLAR.nombre}</strong>.</li>
             <li>Presiona “Conectar Freighter” y acepta en la ventana de la extensión.</li>
           </ol>
           <button

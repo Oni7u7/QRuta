@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AVISO_RED } from "@/lib/config";
 import { Logo } from "./marca/logo";
 
 const enlaces = [
@@ -41,7 +42,7 @@ export function SiteFooter() {
           <p>QRuta · MVP fase 1</p>
           <p className="flex items-center gap-2">
             <span className="inline-block size-2 rounded-full bg-naranja" aria-hidden="true" />
-            Opera en Stellar testnet: los registros son de demostración y no tienen validez legal.
+            {AVISO_RED}
           </p>
         </div>
       </div>

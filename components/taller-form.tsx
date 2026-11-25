@@ -7,6 +7,7 @@ import {
   CHECKLIST_ITEMS,
   CHECK_LABEL,
   CHECK_VALORES,
+  RED_STELLAR,
   TIPOS,
   TIPO_LABEL,
   VIGENCIA_DIAS,
@@ -125,7 +126,7 @@ export function TallerForm({ tallerNombre, wallet }: { tallerNombre: string; wal
           </span>
           <div>
             <h2 className="font-semibold">Servicio firmado y registrado</h2>
-            <p className="text-sm text-texto-2">Quedó en el contrato de QRuta en Stellar testnet.</p>
+            <p className="text-sm text-texto-2">Quedó en el contrato de QRuta en Stellar {RED_STELLAR.nombre}.</p>
           </div>
         </div>
 

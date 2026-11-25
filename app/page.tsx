@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import { Isotipo } from "@/components/marca/logo";
 import { QrMarca } from "@/components/marca/qr-marca";
 import { IconoEstado, type TonoEstado } from "@/components/marca/estado-unidad";
-import { DIAS_POR_VENCER, TOTP_STEP } from "@/lib/config";
+import { AVISO_RED, DIAS_POR_VENCER, ES_TESTNET, TOTP_STEP } from "@/lib/config";
 
 // Landing en estilo brutalista: esquinas a 0, bordes de 2 px en el color del texto, sombras duras sin
 // desenfoque y monoespaciada para datos y etiquetas. Todo sale de los tokens de marca, así que funciona en
@@ -133,7 +133,9 @@ const preguntas = [
   },
   {
     p: "¿Ya funciona en la red principal?",
-    r: "Todavía no. Este MVP opera en Stellar testnet: los registros son de demostración y no tienen validez legal. Pasar a mainnet está en el roadmap.",
+    r: ES_TESTNET
+      ? `Todavía no. ${AVISO_RED} Pasar a mainnet está en el roadmap.`
+      : "Sí. Los expedientes se registran en la red principal de Stellar.",
   },
 ];
 
