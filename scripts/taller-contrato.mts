@@ -8,6 +8,7 @@
 // - aprobar: exige que el taller esté 'aprobado' en la base (KYB revisado) y tenga su wallet vinculada.
 // - suspender: lo suspende en el contrato y en la base. Sus expedientes anteriores siguen siendo válidos.
 // Firma la cuenta admin del contrato (STELLAR_SECRET).
+// Usa la red de NEXT_PUBLIC_STELLAR_NETWORK (testnet por defecto); en mainnet exige STELLAR_RPC_URL.
 
 import { createClient } from "@supabase/supabase-js";
 import { Address, Contract, Keypair, Networks, TransactionBuilder, rpc, scValToNative } from "@stellar/stellar-sdk";
@@ -30,8 +31,25 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !STELLAR_SECRET || !QRUTA_CON
   process.exit(1);
 }
 
+// Misma tabla de redes que lib/config.ts (los scripts corren con node, sin el alias @/).
+const REDES = {
+  testnet: { passphrase: Networks.TESTNET, rpc: "https://soroban-testnet.stellar.org", explorador: "https://stellar.expert/explorer/testnet" },
+  mainnet: { passphrase: Networks.PUBLIC, rpc: null, explorador: "https://stellar.expert/explorer/public" },
+} as const;
+const nombreRed = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet").trim().toLowerCase();
+if (nombreRed !== "testnet" && nombreRed !== "mainnet") {
+  console.error('NEXT_PUBLIC_STELLAR_NETWORK debe ser "testnet" o "mainnet"');
+  process.exit(1);
+}
+const red = REDES[nombreRed];
+const rpcUrl = process.env.STELLAR_RPC_URL?.trim() || red.rpc;
+if (!rpcUrl) {
+  console.error("Falta STELLAR_RPC_URL (obligatoria en mainnet)");
+  process.exit(1);
+}
+
 const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-const server = new rpc.Server("https://soroban-testnet.stellar.org");
+const server = new rpc.Server(rpcUrl);
 const contrato = new Contract(QRUTA_CONTRACT_ID);
 const admin = Keypair.fromSecret(STELLAR_SECRET);
 
@@ -55,7 +73,7 @@ if (!taller) {
 
 async function esAprobado(direccion: string) {
   const fuente = await server.getAccount(admin.publicKey());
-  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: Networks.TESTNET })
+  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: red.passphrase })
     .addOperation(contrato.call("es_aprobado", new Address(direccion).toScVal()))
     .setTimeout(30)
     .build();
@@ -66,7 +84,7 @@ async function esAprobado(direccion: string) {
 
 async function invocarComoAdmin(fn: string, direccion: string) {
   const fuente = await server.getAccount(admin.publicKey());
-  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: Networks.TESTNET })
+  const tx = new TransactionBuilder(fuente, { fee: "100", networkPassphrase: red.passphrase })
     .addOperation(contrato.call(fn, new Address(direccion).toScVal()))
     .setTimeout(60)
     .build();
@@ -79,6 +97,7 @@ async function invocarComoAdmin(fn: string, direccion: string) {
   return envio.hash;
 }
 
+console.log(`Red:    ${nombreRed}`);
 console.log(`Taller: ${taller.nombre} <${email}>`);
 console.log(`  KYB en la base: ${taller.estado}`);
 console.log(`  Wallet:         ${taller.stellar_address ?? "(sin vincular)"}`);
@@ -97,11 +116,11 @@ if (accion === "aprobar") {
     process.exit(1);
   }
   const hash = await invocarComoAdmin("aprobar_taller", taller.stellar_address);
-  console.log(`\nWallet aprobada en el contrato.\n  https://stellar.expert/explorer/testnet/tx/${hash}`);
+  console.log(`\nWallet aprobada en el contrato.\n  ${red.explorador}/tx/${hash}`);
 }
 
 if (accion === "suspender") {
   const hash = await invocarComoAdmin("suspender_taller", taller.stellar_address);
   await sb.from("talleres").update({ estado: "suspendido" }).eq("id", taller.id);
-  console.log(`\nTaller suspendido en el contrato y en la base.\n  https://stellar.expert/explorer/testnet/tx/${hash}`);
+  console.log(`\nTaller suspendido en el contrato y en la base.\n  ${red.explorador}/tx/${hash}`);
 }
