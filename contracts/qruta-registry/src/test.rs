@@ -209,3 +209,37 @@ fn la_vigencia_se_calcula_con_la_hora_del_ledger() {
     e.ledger().set_timestamp(FECHA + 31 * DIA);
     assert!(!p.client.estado(&placa(e, "VEN001")).unwrap().vigente);
 }
+
+#[test]
+fn la_vigencia_no_puede_exceder_la_del_tipo() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    // Correctivo: 30 días (+1 por el final del día) sí; 32 no.
+    p.client.registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 1), &tipo(e, "correctivo"), &FECHA, &(FECHA + 31 * DIA - 1));
+    assert_eq!(
+        p.client.try_registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 2), &tipo(e, "correctivo"), &FECHA, &(FECHA + 32 * DIA)),
+        Err(Ok(Error::VigenciaInvalida))
+    );
+    // Una vigencia de 50 años se rechaza aunque el tipo sea el de mayor vigencia.
+    assert_eq!(
+        p.client.try_registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 3), &tipo(e, "verificacion"), &FECHA, &(FECHA + 50 * 365 * DIA)),
+        Err(Ok(Error::VigenciaInvalida))
+    );
+    p.client.registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 4), &tipo(e, "verificacion"), &FECHA, &(FECHA + 180 * DIA));
+}
+
+#[test]
+fn la_fecha_no_puede_estar_en_el_futuro() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let ahora = e.ledger().timestamp();
+    // Hasta 2 días adelante se acepta (husos horarios); más, no.
+    p.client.registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 1), &tipo(e, "correctivo"), &(ahora + 2 * DIA), &(ahora + 32 * DIA));
+    let lejana = ahora + 80 * 365 * DIA;
+    assert_eq!(
+        p.client.try_registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 2), &tipo(e, "correctivo"), &lejana, &(lejana + 30 * DIA)),
+        Err(Ok(Error::FechaFutura))
+    );
+}

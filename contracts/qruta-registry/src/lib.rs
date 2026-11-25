@@ -17,6 +17,10 @@ const DIA_EN_LEDGERS: u32 = 17_280;
 const TTL_UMBRAL: u32 = 30 * DIA_EN_LEDGERS;
 const TTL_EXTENDER: u32 = 120 * DIA_EN_LEDGERS;
 
+const DIA: u64 = 86_400;
+// La fecha del servicio puede ir hasta 2 días adelante del ledger (husos horarios y margen de la app).
+const TOLERANCIA_FECHA: u64 = 2 * DIA;
+
 #[contracttype]
 #[derive(Clone)]
 enum Clave {
@@ -59,6 +63,7 @@ pub enum Error {
     TipoInvalido = 3,
     VigenciaInvalida = 4,
     ExpedienteDuplicado = 5,
+    FechaFutura = 6,
 }
 
 #[contractevent]
@@ -100,8 +105,17 @@ fn extender(env: &Env, clave: &Clave) {
     env.storage().persistent().extend_ttl(clave, TTL_UMBRAL, TTL_EXTENDER);
 }
 
-fn tipo_valido(env: &Env, tipo: &Symbol) -> bool {
-    *tipo == Symbol::new(env, "preventivo") || *tipo == Symbol::new(env, "correctivo") || *tipo == Symbol::new(env, "verificacion")
+/// Días de vigencia de cada tipo de servicio (los mismos que `lib/config.ts`). None = tipo inválido.
+fn dias_vigencia(env: &Env, tipo: &Symbol) -> Option<u64> {
+    if *tipo == Symbol::new(env, "preventivo") {
+        Some(90)
+    } else if *tipo == Symbol::new(env, "correctivo") {
+        Some(30)
+    } else if *tipo == Symbol::new(env, "verificacion") {
+        Some(180)
+    } else {
+        None
+    }
 }
 
 #[contractimpl]
@@ -158,10 +172,12 @@ impl QrutaRegistry {
         if placa.len() < 3 || placa.len() > 10 {
             return Err(Error::PlacaInvalida);
         }
-        if !tipo_valido(&env, &tipo) {
-            return Err(Error::TipoInvalido);
+        let dias = dias_vigencia(&env, &tipo).ok_or(Error::TipoInvalido)?;
+        if fecha > env.ledger().timestamp() + TOLERANCIA_FECHA {
+            return Err(Error::FechaFutura);
         }
-        if vigente_hasta <= fecha {
+        // La app cuenta la vigencia hasta el final del día: como máximo (días + 1) desde la fecha.
+        if vigente_hasta <= fecha || vigente_hasta - fecha > (dias + 1) * DIA {
             return Err(Error::VigenciaInvalida);
         }
         let clave_exp = Clave::Expediente(hash.clone());
