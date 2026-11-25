@@ -105,6 +105,18 @@ fn extender(env: &Env, clave: &Clave) {
     env.storage().persistent().extend_ttl(clave, TTL_UMBRAL, TTL_EXTENDER);
 }
 
+/// Ledgers que debe vivir un dato para cubrir la vigencia más 30 días de margen
+/// (nunca menos de TTL_EXTENDER ni más del máximo que permite la red).
+fn ttl_para_vigencia(env: &Env, vigente_hasta: u64) -> u32 {
+    let restante = vigente_hasta.saturating_sub(env.ledger().timestamp()) / 5;
+    let deseado = u32::try_from(restante).unwrap_or(u32::MAX).saturating_add(TTL_UMBRAL).max(TTL_EXTENDER);
+    deseado.min(env.storage().max_ttl())
+}
+
+fn extender_hasta(env: &Env, clave: &Clave, ttl: u32) {
+    env.storage().persistent().extend_ttl(clave, ttl, ttl);
+}
+
 /// Días de vigencia de cada tipo de servicio (los mismos que `lib/config.ts`). None = tipo inválido.
 fn dias_vigencia(env: &Env, tipo: &Symbol) -> Option<u64> {
     if *tipo == Symbol::new(env, "preventivo") {
@@ -194,7 +206,10 @@ impl QrutaRegistry {
             ledger: env.ledger().sequence(),
         };
         env.storage().persistent().set(&clave_exp, &registro);
-        extender(&env, &clave_exp);
+        // Los datos viven al menos hasta que vence el servicio (antes se archivaban a los 120 días).
+        let ttl = ttl_para_vigencia(&env, vigente_hasta);
+        extender_hasta(&env, &clave_exp, ttl);
+        extender_hasta(&env, &Clave::Taller(taller.clone()), ttl);
 
         // El estado de la unidad lo define el servicio más reciente por fecha
         // (si empatan, el último registrado), igual que en la app.
@@ -209,8 +224,8 @@ impl QrutaRegistry {
         if reemplazar {
             env.storage().persistent().set(&clave_ult, &hash);
         }
-        extender(&env, &clave_ult);
-        extender_instancia(&env);
+        extender_hasta(&env, &clave_ult, ttl);
+        env.storage().instance().extend_ttl(ttl, ttl);
 
         ExpedienteRegistrado { placa, hash, taller, vigente_hasta }.publish(&env);
         Ok(())

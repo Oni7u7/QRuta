@@ -3,7 +3,7 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger, MockAuth, MockAuthInvoke},
+    testutils::{storage::Persistent as _, Address as _, Ledger, MockAuth, MockAuthInvoke},
     BytesN, Env, IntoVal, String, Symbol,
 };
 
@@ -13,6 +13,7 @@ const FECHA: u64 = 1_790_812_800;
 
 struct Prueba<'a> {
     env: Env,
+    id: Address,
     admin: Address,
     taller: Address,
     client: QrutaRegistryClient<'a>,
@@ -26,7 +27,7 @@ fn preparar() -> Prueba<'static> {
     let taller = Address::generate(&env);
     let id = env.register(QrutaRegistry, (&admin,));
     let client = QrutaRegistryClient::new(&env, &id);
-    Prueba { env, admin, taller, client }
+    Prueba { env, id, admin, taller, client }
 }
 
 fn hash(env: &Env, n: u8) -> BytesN<32> {
@@ -242,4 +243,31 @@ fn la_fecha_no_puede_estar_en_el_futuro() {
         p.client.try_registrar(&p.taller, &placa(e, "ABC123"), &hash(e, 2), &tipo(e, "correctivo"), &lejana, &(lejana + 30 * DIA)),
         Err(Ok(Error::FechaFutura))
     );
+}
+
+fn ttl(p: &Prueba, clave: &Clave) -> u32 {
+    p.env.as_contract(&p.id, || p.env.storage().persistent().get_ttl(clave))
+}
+
+#[test]
+fn los_datos_viven_al_menos_hasta_que_vence_el_servicio() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let e = &p.env;
+    let ahora = e.ledger().timestamp();
+    let h = hash(e, 1);
+    // Verificación: 180 días, más que los 120 que se extendían antes.
+    p.client.registrar(&p.taller, &placa(e, "VER180"), &h, &tipo(e, "verificacion"), &ahora, &(ahora + 180 * DIA));
+
+    let necesario = ((180 * DIA / 5) as u32).min(e.storage().max_ttl());
+    assert!(ttl(&p, &Clave::Expediente(h.clone())) >= necesario);
+    assert!(ttl(&p, &Clave::Ultimo(placa(e, "VER180"))) >= necesario);
+    assert!(ttl(&p, &Clave::Taller(p.taller.clone())) >= necesario);
+}
+
+#[test]
+fn el_entorno_de_prueba_permite_ttl_de_mas_de_120_dias() {
+    // Si no, la prueba anterior no demostraría nada.
+    let p = preparar();
+    assert!(p.env.storage().max_ttl() > 180 * 17_280);
 }
