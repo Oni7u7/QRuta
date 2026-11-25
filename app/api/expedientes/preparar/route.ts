@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { tallerAutorizado } from "@/lib/auth";
+import { RED, RED_STELLAR } from "@/lib/config";
 import { completarExpediente, expedienteSchema } from "@/lib/expediente";
 import { SorobanError, prepararRegistro } from "@/lib/soroban";
 
@@ -28,7 +29,8 @@ export async function POST(req: Request) {
       fechaUnix: e.fechaUnix,
       vigenteHastaUnix: e.vigenteHastaUnix,
     });
-    return NextResponse.json({ xdr, hash: e.hash, network: "TESTNET" });
+    // La red viaja con el XDR para que el cliente firme con la misma passphrase.
+    return NextResponse.json({ xdr, hash: e.hash, network: RED.toUpperCase(), networkPassphrase: RED_STELLAR.passphrase });
   } catch (err) {
     if (err instanceof SorobanError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error("Error al preparar el registro:", err instanceof Error ? err.message : err);
