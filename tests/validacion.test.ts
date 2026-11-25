@@ -32,7 +32,8 @@ describe("expedienteSchema", () => {
   });
 
   it("pone notas vacías por defecto", () => {
-    const { notas: _, ...sinNotas } = base;
+    const sinNotas: Partial<typeof base> = { ...base };
+    delete sinNotas.notas;
     expect(expedienteSchema.parse(sinNotas).notas).toBe("");
   });
 
@@ -54,7 +55,8 @@ describe("expedienteSchema", () => {
   });
 
   it("exige el checklist completo con valores válidos", () => {
-    const { cinturones: _, ...incompleto } = checklist;
+    const incompleto: Partial<typeof checklist> = { ...checklist };
+    delete incompleto.cinturones;
     expect(expedienteSchema.safeParse({ ...base, checklist: incompleto }).success).toBe(false);
     expect(expedienteSchema.safeParse({ ...base, checklist: { ...checklist, frenos: "bien" } }).success).toBe(false);
   });
