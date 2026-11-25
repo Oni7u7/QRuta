@@ -34,6 +34,13 @@ const ERRORES_CONTRATO: Record<number, string> = {
   3: "El tipo de servicio no es válido para el contrato.",
   4: "La vigencia del servicio no es válida.",
   5: "Este expediente ya está registrado en el contrato.",
+  6: "La fecha del servicio no puede estar en el futuro.",
+  7: "Esta placa no tiene servicios en el contrato.",
+  8: "El expediente no existe en el contrato.",
+  9: "Este expediente fue anulado en el contrato.",
+  10: "El motivo debe tener entre 3 y 200 caracteres.",
+  11: "Solo el taller que firmó el expediente puede corregirlo.",
+  12: "Este expediente ya fue corregido.",
 };
 
 export class SorobanError extends Error {
