@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { tallerAutorizado } from "@/lib/auth";
-import { SorobanError, aprobarTallerOnChain, asegurarCuentaTestnet, esAprobadoOnChain, esDireccionStellar } from "@/lib/soroban";
+import { SorobanError, aprobarTallerOnChain, asegurarCuenta, esAprobadoOnChain, esDireccionStellar } from "@/lib/soroban";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export const runtime = "nodejs";
-// Friendbot y la aprobación en el contrato pueden tardar ~20 s en testnet.
+// El fondeo con Friendbot (solo testnet) y la aprobación en el contrato pueden tardar ~20 s.
 export const maxDuration = 60;
 
 const bodySchema = z.object({
@@ -47,10 +47,11 @@ export async function POST(req: Request) {
 
   let fondeo: "existente" | "fondeada";
   try {
-    fondeo = await asegurarCuentaTestnet(address);
+    fondeo = await asegurarCuenta(address);
   } catch (err) {
-    console.error("Error al fondear la wallet en testnet:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ address, error: "Wallet vinculada, pero no se pudo fondear en testnet. Intenta de nuevo." }, { status: 502 });
+    if (err instanceof SorobanError) return NextResponse.json({ address, error: err.message }, { status: err.status });
+    console.error("Error al fondear la wallet:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ address, error: "Wallet vinculada, pero no se pudo activar en Stellar. Intenta de nuevo." }, { status: 502 });
   }
 
   try {

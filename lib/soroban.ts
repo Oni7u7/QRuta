@@ -85,9 +85,16 @@ export async function cuentaExiste(direccion: string) {
   }
 }
 
-// En testnet, fondea la cuenta con Friendbot si todavía no existe.
-export async function asegurarCuentaTestnet(direccion: string) {
+// Si la cuenta todavía no existe, en testnet la fondea con Friendbot.
+// En mainnet no hay Friendbot: el taller debe crearla con XLM antes de vincularla.
+export async function asegurarCuenta(direccion: string) {
   if (await cuentaExiste(direccion)) return "existente" as const;
+  if (!RED_STELLAR.friendbot) {
+    throw new SorobanError(
+      `Tu wallet todavía no existe en ${RED_STELLAR.nombre}. Recíbele XLM para activarla y vuelve a intentarlo.`,
+      409,
+    );
+  }
   await servidor().fundAddress(direccion);
   return "fondeada" as const;
 }
@@ -140,7 +147,7 @@ export async function prepararRegistro(a: ArgsRegistro): Promise<string> {
   try {
     cuenta = await servidor().getAccount(a.taller);
   } catch {
-    throw new SorobanError(`Tu wallet no existe en ${RED_STELLAR.nombre}. Vuelve a conectarla.`, 409);
+    throw new SorobanError(`Tu wallet no existe en ${RED_STELLAR.nombre}. Vuelve a conectarla para activarla.`, 409);
   }
   const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: PASSPHRASE })
     .addOperation(new Contract(contractId()).call("registrar", ...argsRegistrar(a)))
