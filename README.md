@@ -191,17 +191,17 @@ vercel --prod
 
 ## Entregables antes del sábado 28 de noviembre de 2026
 
-Mejoras de la página web (sin cambios al contrato). Estado: **pendiente** en todas.
+Mejoras de la página web (sin cambios al contrato). Para revisar lint, tipos y pruebas de una vez: `npm run verificar`.
 
-| # | Mejora | Qué incluye | Estimado |
-|---|---|---|---|
-| 1 | **Pantalla vinculada a la unidad** | Un admin genera un código de emparejamiento por unidad; la pantalla lo usa una vez y recibe su credencial de dispositivo. `/api/pantalla/[placa]` solo entrega el token a dispositivos vinculados (cierra la limitación descrita arriba). En `/verificar`, la placa se muestra en grande con "Compárala con la placa de la unidad". Límite de solicitudes en `/api/pantalla` y `/verificar`. Requiere una migración nueva en Supabase. | ~2 días |
-| 2 | **Doble factor para admins y bitácora** | Segundo factor al iniciar sesión como admin. Registro de quién aprobó, rechazó, suspendió o reactivó a qué taller y cuándo, visible en `/admin`. | ~1 día |
-| 3 | **Avisos de vencimiento** | Correo cuando una unidad está a `DIAS_POR_VENCER` días o menos de vencer. Mientras no existan cuentas de concesionario, se envía al correo de contacto registrado para la unidad. | ~1 día |
-| 4 | **Reportes del pasajero** | Desde `/verificar`: "esta unidad no tiene QR" o "sale vencida", con placa, motivo y comentario opcional. Los reportes se revisan en `/admin`. Con límite de solicitudes y campo trampa contra bots. | ~1 día |
-| 5 | **Evidencias del servicio** | Fotos o factura adjuntas al expediente, en un bucket privado. Su hash entra en la huella del expediente que ya se ancla, sin cambiar el contrato. | ~1-2 días |
-| 6 | **Pruebas automáticas de la app** | Pruebas dentro del repo para verificación, pantalla vinculada, registro y panel admin, que se corren con un solo comando. Se agregan a la par de cada mejora. | ~1-2 días |
-| 7 | **App multi-red** | Variable `STELLAR_NETWORK` (`testnet` \| `mainnet`) que define en `lib/config.ts` las URLs de Horizon y Soroban RPC, la passphrase y los enlaces de Stellar Expert. Quita `Networks.TESTNET` del resto del código, hace que Freighter exija la red configurada, usa Friendbot solo en testnet y adapta los textos según la red. | ~1 día |
+| # | Mejora | Qué incluye | Estimado | Estado |
+|---|---|---|---|---|
+| 1 | **Pantalla vinculada a la unidad** | Un admin genera un código de emparejamiento por unidad; la pantalla lo usa una vez y recibe su credencial de dispositivo. `/api/pantalla/[placa]` solo entrega el token a dispositivos vinculados (cierra la limitación descrita arriba). En `/verificar`, la placa se muestra en grande con "Compárala con la placa de la unidad". Límite de solicitudes en `/api/pantalla` y `/verificar`. Requiere una migración nueva en Supabase. | ~2 días | Pendiente |
+| 2 | **Doble factor para admins y bitácora** | Segundo factor al iniciar sesión como admin. Registro de quién aprobó, rechazó, suspendió o reactivó a qué taller y cuándo, visible en `/admin`. | ~1 día | Pendiente |
+| 3 | **Avisos de vencimiento** | Correo cuando una unidad está a `DIAS_POR_VENCER` días o menos de vencer. Mientras no existan cuentas de concesionario, se envía al correo de contacto registrado para la unidad. | ~1 día | Pendiente |
+| 4 | **Reportes del pasajero** | Desde `/verificar`: "esta unidad no tiene QR" o "sale vencida", con placa, motivo y comentario opcional. Los reportes se revisan en `/admin`. Con límite de solicitudes y campo trampa contra bots. | ~1 día | Pendiente |
+| 5 | **Evidencias del servicio** | Fotos o factura adjuntas al expediente, en un bucket privado. Su hash entra en la huella del expediente que ya se ancla, sin cambiar el contrato. | ~1-2 días | Pendiente |
+| 6 | **Pruebas automáticas de la app** | Pruebas dentro del repo para verificación, pantalla vinculada, registro y panel admin, que se corren con un solo comando. Se agregan a la par de cada mejora. | ~1-2 días | **En curso**: vitest, `npm test` y 33 pruebas de vigencias, QR, validación, huella y redes. Faltan las de cada mejora nueva. |
+| 7 | **App multi-red** | Variable `NEXT_PUBLIC_STELLAR_NETWORK` (`testnet` \| `mainnet`; es pública porque Freighter la necesita en el navegador) que define en `lib/config.ts` las URLs de Horizon y Soroban RPC, la passphrase y los enlaces de Stellar Expert. Quita `Networks.TESTNET` del resto del código, hace que Freighter exija la red configurada, usa Friendbot solo en testnet y adapta los textos según la red. | ~1 día | **Hecho** (24 nov) |
 
 Fuera de esta entrega: cuentas de concesionario, contrato v2, comisiones patrocinadas y corrección de expedientes. El detalle está en [`docs/roadmap-mainnet.md`](docs/roadmap-mainnet.md).
 
