@@ -1255,6 +1255,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "qruta-boveda"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "qruta-registry"
 version = "0.2.0"
 dependencies = [

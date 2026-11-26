@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["qruta-registry"]
+members = ["qruta-registry", "qruta-boveda"]
 
 [workspace.dependencies]
 soroban-sdk = "29.0.1"
