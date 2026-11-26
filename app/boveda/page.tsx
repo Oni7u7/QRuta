@@ -2,7 +2,10 @@ import type { Metadata } from "next";
 import { BovedaPanel } from "@/components/boveda-panel";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { BOVEDA_CONTRACT_ID, urlContrato } from "@/lib/boveda";
+import { BOVEDA_CONTRACT_ID, BOVEDA_RED, urlContrato } from "@/lib/boveda";
+
+// Bóveda que se entregó al reto y se abrió en una prueba (ya vacía).
+const BOVEDA_PRIMERA = "CA2LMHZ2F6RMDDCAATKDLQG2FSKRDWWMPBQ7DABFLSXZIJK7ZUVDDTUY";
 
 export const metadata: Metadata = {
   title: "Bóveda · QRuta",
@@ -23,8 +26,15 @@ export default function BovedaPage() {
         <div className="mt-8">
           <BovedaPanel />
         </div>
-        <p className="mt-6 break-all font-mono text-xs text-texto-2">
-          Contrato:{" "}
+        <p className="mt-6 border-2 border-texto p-3 text-sm text-texto-2">
+          <strong className="text-texto">Nota para los jueces:</strong> la primera bóveda (
+          <a href={`${BOVEDA_RED.exploradorUrl}/contract/${BOVEDA_PRIMERA}`} target="_blank" rel="noopener noreferrer" className="enlace font-mono">
+            CA2L…DTUY
+          </a>
+          ) se abrió por error durante una prueba del equipo. Esta pantalla ya usa la bóveda vigente, con 5,555 XLM y el mismo código.
+        </p>
+        <p className="mt-4 break-all font-mono text-xs text-texto-2">
+          Contrato vigente:{" "}
           <a href={urlContrato()} target="_blank" rel="noopener noreferrer" className="enlace">
             {BOVEDA_CONTRACT_ID}
             <span className="sr-only"> (abre en otra pestaña)</span>
