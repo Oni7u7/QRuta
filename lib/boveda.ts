@@ -14,7 +14,8 @@ import {
 } from "@stellar/stellar-sdk";
 import { configRed } from "./config";
 
-export const BOVEDA_CONTRACT_ID = "CA2LMHZ2F6RMDDCAATKDLQG2FSKRDWWMPBQ7DABFLSXZIJK7ZUVDDTUY";
+// La primera bóveda (CA2LMHZ…DTUY) ya se abrió en una prueba; esta es la vigente.
+export const BOVEDA_CONTRACT_ID = "CBV7KCBOT4ULGUQZOR3KAIBSGYQQ3YMHZOJNUFITJ26LMX5QKR5FABVP";
 export const BOVEDA_RED = configRed("testnet");
 export const STROOPS_POR_XLM = BigInt(10_000_000);
 
