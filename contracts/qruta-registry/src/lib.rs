@@ -9,7 +9,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype, Address, BytesN, ContractExecutable, Env, String,
-    Symbol,
+    Symbol, Vec,
 };
 
 // Un ledger cada ~5 s.
@@ -20,6 +20,10 @@ const TTL_EXTENDER: u32 = 120 * DIA_EN_LEDGERS;
 const DIA: u64 = 86_400;
 // La fecha del servicio puede ir hasta 2 días adelante del ledger (husos horarios y margen de la app).
 const TOLERANCIA_FECHA: u64 = 2 * DIA;
+// Con 3 reportes de pasajeros distintos (o de días distintos) la unidad queda en revisión.
+const REPORTES_PARA_REVISION: u32 = 3;
+// Máximo de expedientes en un solo `registrar_lote` (límite de recursos por transacción).
+const LOTE_MAXIMO: u32 = 10;
 
 #[contracttype]
 #[derive(Clone)]
@@ -31,6 +35,11 @@ enum Clave {
     // Claves nuevas en v2: los registros anteriores no cambian de formato.
     Anulado(BytesN<32>),
     CorregidoPor(BytesN<32>),
+    // Claves nuevas en v3.
+    Revision(String),
+    ReporteDe(String, Address),
+    Cofirma(BytesN<32>),
+    Custodio(String),
 }
 
 /// Lo que queda on-chain de cada expediente.
@@ -54,6 +63,38 @@ pub struct Registro {
 pub struct Anulacion {
     pub motivo: String,
     pub ledger: u32,
+}
+
+/// Reportes de falla de una unidad desde la última vez que un taller los atendió.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Revision {
+    pub reportes: u32,
+    /// true cuando llegó a REPORTES_PARA_REVISION: la unidad necesita un servicio nuevo.
+    pub en_revision: bool,
+    /// Ledger del primer reporte de este ciclo: el servicio que lo atienda debe ser de un ledger posterior.
+    pub desde_ledger: u32,
+    /// Huella (SHA-256) de la evidencia del último reporte (foto o descripción, fuera de la cadena).
+    pub ultima_evidencia: BytesN<32>,
+}
+
+/// Aval de un segundo taller sobre un expediente.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cofirma {
+    pub inspector: Address,
+    pub ledger: u32,
+}
+
+/// Un expediente dentro de `registrar_lote`.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpedienteLote {
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub tipo: Symbol,
+    pub fecha: u64,
+    pub vigente_hasta: u64,
 }
 
 /// Estado público de una unidad: su expediente más reciente por fecha de servicio.
@@ -81,6 +122,14 @@ pub enum Error {
     MotivoInvalido = 10,
     NoEsDelTaller = 11,
     ExpedienteYaCorregido = 12,
+    ReporteRepetido = 13,
+    SinReportes = 14,
+    ExpedienteDeOtraPlaca = 15,
+    ExpedienteAnterior = 16,
+    MismoTaller = 17,
+    YaCofirmado = 18,
+    NoEsCustodio = 19,
+    LoteInvalido = 20,
 }
 
 #[contractevent]
@@ -135,6 +184,60 @@ pub struct ExpedienteCorregido {
     pub motivo: String,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FallaReportada {
+    #[topic]
+    pub placa: String,
+    pub reportante: Address,
+    pub evidencia: BytesN<32>,
+    pub reportes: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnidadEnRevision {
+    #[topic]
+    pub placa: String,
+    pub reportes: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReporteAtendido {
+    #[topic]
+    pub placa: String,
+    pub taller: Address,
+    pub hash: BytesN<32>,
+    pub reportes: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ExpedienteCofirmado {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub inspector: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnidadTransferida {
+    #[topic]
+    pub placa: String,
+    pub de: Address,
+    pub a: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LoteRegistrado {
+    #[topic]
+    pub taller: Address,
+    pub expedientes: u32,
+}
+
 #[contract]
 pub struct QrutaRegistry;
 
@@ -160,6 +263,21 @@ fn ttl_para_vigencia(env: &Env, vigente_hasta: u64) -> u32 {
 
 fn extender_hasta(env: &Env, clave: &Clave, ttl: u32) {
     env.storage().persistent().extend_ttl(clave, ttl, ttl);
+}
+
+fn esta_aprobado(env: &Env, taller: &Address) -> bool {
+    env.storage().persistent().get(&Clave::Taller(taller.clone())).unwrap_or(false)
+}
+
+/// Taller responsable de una placa: el que la recibió por `transferir_unidad` o, si nunca se transfirió,
+/// el que firmó su expediente vigente.
+fn custodio(env: &Env, placa: &String) -> Option<Address> {
+    if let Some(a) = env.storage().persistent().get::<_, Address>(&Clave::Custodio(placa.clone())) {
+        return Some(a);
+    }
+    let hash: BytesN<32> = env.storage().persistent().get(&Clave::Ultimo(placa.clone()))?;
+    let registro: Registro = env.storage().persistent().get(&Clave::Expediente(hash))?;
+    Some(registro.taller)
 }
 
 /// Días de vigencia de cada tipo de servicio (los mismos que `lib/config.ts`). None = tipo inválido.
@@ -188,8 +306,7 @@ fn guardar_registro(
     vigente_hasta: u64,
     sustituye: Option<BytesN<32>>,
 ) -> Result<(), Error> {
-    let aprobado: bool = env.storage().persistent().get(&Clave::Taller(taller.clone())).unwrap_or(false);
-    if !aprobado {
+    if !esta_aprobado(env, &taller) {
         return Err(Error::TallerNoAprobado);
     }
     if placa.len() < 3 || placa.len() > 10 {
@@ -275,7 +392,7 @@ impl QrutaRegistry {
     }
 
     pub fn es_aprobado(env: Env, taller: Address) -> bool {
-        env.storage().persistent().get(&Clave::Taller(taller)).unwrap_or(false)
+        esta_aprobado(&env, &taller)
     }
 
     /// Registra un expediente firmado por el taller.
@@ -388,6 +505,154 @@ impl QrutaRegistry {
 
         ExpedienteCorregido { placa, anterior, nuevo: hash, motivo }.publish(&env);
         Ok(())
+    }
+
+    /// Registra de una vez varios expedientes del mismo taller (por ejemplo, el servicio de toda una flota).
+    /// Cada uno pasa las mismas validaciones que `registrar`; si uno falla, no se guarda ninguno.
+    /// Devuelve cuántos registró.
+    pub fn registrar_lote(env: Env, taller: Address, lote: Vec<ExpedienteLote>) -> Result<u32, Error> {
+        taller.require_auth();
+        let n = lote.len();
+        if n == 0 || n > LOTE_MAXIMO {
+            return Err(Error::LoteInvalido);
+        }
+        for e in lote.iter() {
+            guardar_registro(&env, taller.clone(), e.placa, e.hash, e.tipo, e.fecha, e.vigente_hasta, None)?;
+        }
+        LoteRegistrado { taller, expedientes: n }.publish(&env);
+        Ok(n)
+    }
+
+    /// Un pasajero reporta una falla de la unidad con la huella de su evidencia.
+    /// Firma el pasajero; solo cuenta un reporte por pasajero, placa y día.
+    /// Al llegar a 3 reportes la unidad queda en revisión hasta que un taller la atienda.
+    /// Devuelve los reportes acumulados.
+    pub fn reportar_falla(env: Env, reportante: Address, placa: String, evidencia: BytesN<32>) -> Result<u32, Error> {
+        reportante.require_auth();
+        if !env.storage().persistent().has(&Clave::Ultimo(placa.clone())) {
+            return Err(Error::PlacaSinRegistro);
+        }
+        let hoy = env.ledger().timestamp() / DIA;
+        let clave_de = Clave::ReporteDe(placa.clone(), reportante.clone());
+        if env.storage().persistent().get::<_, u64>(&clave_de) == Some(hoy) {
+            return Err(Error::ReporteRepetido);
+        }
+        env.storage().persistent().set(&clave_de, &hoy);
+        extender(&env, &clave_de);
+
+        let clave_rev = Clave::Revision(placa.clone());
+        let mut rev = env.storage().persistent().get::<_, Revision>(&clave_rev).unwrap_or(Revision {
+            reportes: 0,
+            en_revision: false,
+            desde_ledger: env.ledger().sequence(),
+            ultima_evidencia: evidencia.clone(),
+        });
+        rev.reportes += 1;
+        rev.ultima_evidencia = evidencia.clone();
+        let entra_en_revision = !rev.en_revision && rev.reportes >= REPORTES_PARA_REVISION;
+        if entra_en_revision {
+            rev.en_revision = true;
+        }
+        env.storage().persistent().set(&clave_rev, &rev);
+        extender(&env, &clave_rev);
+        extender_instancia(&env);
+
+        FallaReportada { placa: placa.clone(), reportante, evidencia, reportes: rev.reportes }.publish(&env);
+        if entra_en_revision {
+            UnidadEnRevision { placa, reportes: rev.reportes }.publish(&env);
+        }
+        Ok(rev.reportes)
+    }
+
+    /// El taller atiende los reportes de una unidad con un servicio que él firmó después del primer reporte.
+    /// Los reportes vuelven a cero y la unidad sale de revisión.
+    pub fn atender_reporte(env: Env, taller: Address, placa: String, hash: BytesN<32>) -> Result<(), Error> {
+        taller.require_auth();
+        if !esta_aprobado(&env, &taller) {
+            return Err(Error::TallerNoAprobado);
+        }
+        let clave_rev = Clave::Revision(placa.clone());
+        let rev: Revision = env.storage().persistent().get(&clave_rev).ok_or(Error::SinReportes)?;
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash.clone())).ok_or(Error::ExpedienteNoExiste)?;
+        if registro.placa != placa {
+            return Err(Error::ExpedienteDeOtraPlaca);
+        }
+        if registro.taller != taller {
+            return Err(Error::NoEsDelTaller);
+        }
+        if env.storage().persistent().has(&Clave::Anulado(hash.clone())) {
+            return Err(Error::ExpedienteAnulado);
+        }
+        if registro.ledger <= rev.desde_ledger {
+            return Err(Error::ExpedienteAnterior);
+        }
+        env.storage().persistent().remove(&clave_rev);
+        extender_instancia(&env);
+        ReporteAtendido { placa, taller, hash, reportes: rev.reportes }.publish(&env);
+        Ok(())
+    }
+
+    /// Un segundo taller aprobado avala un expediente (doble revisión). No puede ser el taller que lo
+    /// firmó, el expediente no debe estar anulado y solo se avala una vez.
+    pub fn cofirmar_expediente(env: Env, inspector: Address, hash: BytesN<32>) -> Result<(), Error> {
+        inspector.require_auth();
+        if !esta_aprobado(&env, &inspector) {
+            return Err(Error::TallerNoAprobado);
+        }
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash.clone())).ok_or(Error::ExpedienteNoExiste)?;
+        if registro.taller == inspector {
+            return Err(Error::MismoTaller);
+        }
+        if env.storage().persistent().has(&Clave::Anulado(hash.clone())) {
+            return Err(Error::ExpedienteAnulado);
+        }
+        let clave = Clave::Cofirma(hash.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::YaCofirmado);
+        }
+        env.storage().persistent().set(&clave, &Cofirma { inspector: inspector.clone(), ledger: env.ledger().sequence() });
+        extender_hasta(&env, &clave, ttl_para_vigencia(&env, registro.vigente_hasta));
+        extender_instancia(&env);
+        ExpedienteCofirmado { placa: registro.placa, hash, inspector }.publish(&env);
+        Ok(())
+    }
+
+    /// El taller responsable de una unidad la entrega a otro taller aprobado (cambio de concesión o de taller).
+    pub fn transferir_unidad(env: Env, taller: Address, placa: String, nuevo: Address) -> Result<(), Error> {
+        taller.require_auth();
+        let actual = custodio(&env, &placa).ok_or(Error::PlacaSinRegistro)?;
+        if actual != taller {
+            return Err(Error::NoEsCustodio);
+        }
+        if nuevo == taller {
+            return Err(Error::MismoTaller);
+        }
+        if !esta_aprobado(&env, &taller) || !esta_aprobado(&env, &nuevo) {
+            return Err(Error::TallerNoAprobado);
+        }
+        let clave = Clave::Custodio(placa.clone());
+        env.storage().persistent().set(&clave, &nuevo);
+        extender(&env, &clave);
+        extender_instancia(&env);
+        UnidadTransferida { placa, de: taller, a: nuevo }.publish(&env);
+        Ok(())
+    }
+
+    /// Reportes pendientes de una unidad, si los tiene.
+    pub fn revision(env: Env, placa: String) -> Option<Revision> {
+        env.storage().persistent().get(&Clave::Revision(placa))
+    }
+
+    /// Aval de un expediente, si lo tiene.
+    pub fn cofirma(env: Env, hash: BytesN<32>) -> Option<Cofirma> {
+        env.storage().persistent().get(&Clave::Cofirma(hash))
+    }
+
+    /// Taller responsable de una placa.
+    pub fn custodio(env: Env, placa: String) -> Option<Address> {
+        custodio(&env, &placa)
     }
 
     /// Hash del expediente que corrigió a este, si lo hay.
