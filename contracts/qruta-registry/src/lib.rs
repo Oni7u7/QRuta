@@ -40,6 +40,9 @@ enum Clave {
     ReporteDe(String, Address),
     Cofirma(BytesN<32>),
     Custodio(String),
+    // Claves nuevas en v4.
+    Baja(String),
+    Apelacion(BytesN<32>),
 }
 
 /// Lo que queda on-chain de cada expediente.
@@ -86,6 +89,25 @@ pub struct Cofirma {
     pub ledger: u32,
 }
 
+/// Unidad retirada de circulación.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Baja {
+    pub motivo: String,
+    pub por: Address,
+    pub ledger: u32,
+}
+
+/// Apelación de un taller contra la anulación de su expediente.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Apelacion {
+    pub motivo: String,
+    pub ledger: u32,
+    pub resuelta: bool,
+    pub aceptada: bool,
+}
+
 /// Un expediente dentro de `registrar_lote`.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -130,6 +152,12 @@ pub enum Error {
     YaCofirmado = 18,
     NoEsCustodio = 19,
     LoteInvalido = 20,
+    NoAutorizado = 21,
+    UnidadDeBaja = 22,
+    NoEstaDeBaja = 23,
+    NoEstaAnulado = 24,
+    YaApelado = 25,
+    SinApelacion = 26,
 }
 
 #[contractevent]
@@ -238,6 +266,41 @@ pub struct LoteRegistrado {
     pub expedientes: u32,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnidadDadaDeBaja {
+    #[topic]
+    pub placa: String,
+    pub por: Address,
+    pub motivo: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnidadReactivada {
+    #[topic]
+    pub placa: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AnulacionApelada {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub taller: Address,
+    pub motivo: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ApelacionResuelta {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub aceptada: bool,
+}
+
 #[contract]
 pub struct QrutaRegistry;
 
@@ -280,6 +343,14 @@ fn custodio(env: &Env, placa: &String) -> Option<Address> {
     Some(registro.taller)
 }
 
+fn de_baja(env: &Env, placa: &String) -> bool {
+    env.storage().persistent().has(&Clave::Baja(placa.clone()))
+}
+
+fn motivo_valido(motivo: &String) -> bool {
+    motivo.len() >= 3 && motivo.len() <= 200
+}
+
 /// Días de vigencia de cada tipo de servicio (los mismos que `lib/config.ts`). None = tipo inválido.
 fn dias_vigencia(env: &Env, tipo: &Symbol) -> Option<u64> {
     if *tipo == Symbol::new(env, "preventivo") {
@@ -311,6 +382,9 @@ fn guardar_registro(
     }
     if placa.len() < 3 || placa.len() > 10 {
         return Err(Error::PlacaInvalida);
+    }
+    if de_baja(env, &placa) {
+        return Err(Error::UnidadDeBaja);
     }
     let dias = dias_vigencia(env, &tipo).ok_or(Error::TipoInvalido)?;
     if fecha > env.ledger().timestamp() + TOLERANCIA_FECHA {
@@ -414,6 +488,9 @@ impl QrutaRegistry {
     /// y la aprobación de su taller para que no se archiven antes de que venza el servicio.
     /// Cualquiera puede llamarla (quien la llama paga la comisión). Devuelve el TTL aplicado, en ledgers.
     pub fn renovar(env: Env, placa: String) -> Result<u32, Error> {
+        if de_baja(&env, &placa) {
+            return Err(Error::UnidadDeBaja);
+        }
         let clave_ult = Clave::Ultimo(placa.clone());
         let hash: BytesN<32> = env.storage().persistent().get(&clave_ult).ok_or(Error::PlacaSinRegistro)?;
         let clave_exp = Clave::Expediente(hash.clone());
@@ -437,7 +514,7 @@ impl QrutaRegistry {
     /// sin servicio vigente hasta que un taller registre uno nuevo.
     pub fn anular_expediente(env: Env, hash: BytesN<32>, motivo: String) -> Result<(), Error> {
         admin(&env).require_auth();
-        if motivo.len() < 3 || motivo.len() > 200 {
+        if !motivo_valido(&motivo) {
             return Err(Error::MotivoInvalido);
         }
         let registro: Registro =
@@ -477,7 +554,7 @@ impl QrutaRegistry {
         motivo: String,
     ) -> Result<(), Error> {
         taller.require_auth();
-        if motivo.len() < 3 || motivo.len() > 200 {
+        if !motivo_valido(&motivo) {
             return Err(Error::MotivoInvalido);
         }
         let previo: Registro =
@@ -531,6 +608,9 @@ impl QrutaRegistry {
         reportante.require_auth();
         if !env.storage().persistent().has(&Clave::Ultimo(placa.clone())) {
             return Err(Error::PlacaSinRegistro);
+        }
+        if de_baja(&env, &placa) {
+            return Err(Error::UnidadDeBaja);
         }
         let hoy = env.ledger().timestamp() / DIA;
         let clave_de = Clave::ReporteDe(placa.clone(), reportante.clone());
@@ -640,6 +720,125 @@ impl QrutaRegistry {
         Ok(())
     }
 
+    /// Retira una unidad de circulación (siniestro, fin de concesión, chatarrización).
+    /// Firma el admin o el taller responsable de la placa. Mientras esté de baja no se registran,
+    /// corrigen ni renuevan sus servicios, no recibe reportes y su estado público deja de ser vigente.
+    pub fn dar_de_baja(env: Env, quien: Address, placa: String, motivo: String) -> Result<(), Error> {
+        quien.require_auth();
+        if !motivo_valido(&motivo) {
+            return Err(Error::MotivoInvalido);
+        }
+        let responsable = custodio(&env, &placa).ok_or(Error::PlacaSinRegistro)?;
+        if quien != admin(&env) && quien != responsable {
+            return Err(Error::NoAutorizado);
+        }
+        let clave = Clave::Baja(placa.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::UnidadDeBaja);
+        }
+        env.storage()
+            .persistent()
+            .set(&clave, &Baja { motivo: motivo.clone(), por: quien.clone(), ledger: env.ledger().sequence() });
+        extender(&env, &clave);
+        extender_instancia(&env);
+        UnidadDadaDeBaja { placa, por: quien, motivo }.publish(&env);
+        Ok(())
+    }
+
+    /// Regresa a circulación una unidad dada de baja. Solo el admin.
+    /// Sus servicios anteriores siguen contando: si alguno sigue vigente, la unidad vuelve vigente.
+    pub fn reactivar_unidad(env: Env, placa: String) -> Result<(), Error> {
+        admin(&env).require_auth();
+        let clave = Clave::Baja(placa.clone());
+        if !env.storage().persistent().has(&clave) {
+            return Err(Error::NoEstaDeBaja);
+        }
+        env.storage().persistent().remove(&clave);
+        extender_instancia(&env);
+        UnidadReactivada { placa }.publish(&env);
+        Ok(())
+    }
+
+    /// El taller que firmó un expediente anulado por el admin pide que se revise la anulación.
+    /// Una sola apelación por expediente; no aplica a los expedientes que el propio taller corrigió.
+    pub fn apelar_anulacion(env: Env, taller: Address, hash: BytesN<32>, motivo: String) -> Result<(), Error> {
+        taller.require_auth();
+        if !motivo_valido(&motivo) {
+            return Err(Error::MotivoInvalido);
+        }
+        if !esta_aprobado(&env, &taller) {
+            return Err(Error::TallerNoAprobado);
+        }
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash.clone())).ok_or(Error::ExpedienteNoExiste)?;
+        if registro.taller != taller {
+            return Err(Error::NoEsDelTaller);
+        }
+        if !env.storage().persistent().has(&Clave::Anulado(hash.clone())) {
+            return Err(Error::NoEstaAnulado);
+        }
+        if env.storage().persistent().has(&Clave::CorregidoPor(hash.clone())) {
+            return Err(Error::ExpedienteYaCorregido);
+        }
+        let clave = Clave::Apelacion(hash.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::YaApelado);
+        }
+        let apelacion =
+            Apelacion { motivo: motivo.clone(), ledger: env.ledger().sequence(), resuelta: false, aceptada: false };
+        env.storage().persistent().set(&clave, &apelacion);
+        extender(&env, &clave);
+        extender_instancia(&env);
+        AnulacionApelada { placa: registro.placa, hash, taller, motivo }.publish(&env);
+        Ok(())
+    }
+
+    /// El admin resuelve una apelación abierta. Si la acepta, se quita la anulación y el expediente
+    /// vuelve a definir el estado de la placa si es su servicio más reciente.
+    pub fn resolver_apelacion(env: Env, hash: BytesN<32>, aceptar: bool) -> Result<(), Error> {
+        admin(&env).require_auth();
+        let clave = Clave::Apelacion(hash.clone());
+        let mut apelacion: Apelacion = env.storage().persistent().get(&clave).ok_or(Error::SinApelacion)?;
+        if apelacion.resuelta {
+            return Err(Error::SinApelacion);
+        }
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash.clone())).ok_or(Error::ExpedienteNoExiste)?;
+
+        if aceptar {
+            env.storage().persistent().remove(&Clave::Anulado(hash.clone()));
+            let clave_ult = Clave::Ultimo(registro.placa.clone());
+            let recupera = match env.storage().persistent().get::<_, BytesN<32>>(&clave_ult) {
+                None => true,
+                Some(actual) => {
+                    let previo: Option<Registro> = env.storage().persistent().get(&Clave::Expediente(actual));
+                    previo.is_none_or(|p| registro.fecha >= p.fecha)
+                }
+            };
+            if recupera {
+                env.storage().persistent().set(&clave_ult, &hash);
+                extender_hasta(&env, &clave_ult, ttl_para_vigencia(&env, registro.vigente_hasta));
+            }
+        }
+        apelacion.resuelta = true;
+        apelacion.aceptada = aceptar;
+        env.storage().persistent().set(&clave, &apelacion);
+        extender(&env, &clave);
+        extender_instancia(&env);
+        ApelacionResuelta { placa: registro.placa, hash, aceptada: aceptar }.publish(&env);
+        Ok(())
+    }
+
+    /// Baja de una unidad, si la tiene.
+    pub fn baja(env: Env, placa: String) -> Option<Baja> {
+        env.storage().persistent().get(&Clave::Baja(placa))
+    }
+
+    /// Apelación de un expediente, si la tiene.
+    pub fn apelacion(env: Env, hash: BytesN<32>) -> Option<Apelacion> {
+        env.storage().persistent().get(&Clave::Apelacion(hash))
+    }
+
     /// Reportes pendientes de una unidad, si los tiene.
     pub fn revision(env: Env, placa: String) -> Option<Revision> {
         env.storage().persistent().get(&Clave::Revision(placa))
@@ -671,10 +870,11 @@ impl QrutaRegistry {
     }
 
     /// Estado público de una placa, calculado con la hora del ledger.
+    /// Una unidad dada de baja nunca aparece como vigente.
     pub fn estado(env: Env, placa: String) -> Option<EstadoUnidad> {
-        let hash: BytesN<32> = env.storage().persistent().get(&Clave::Ultimo(placa))?;
+        let hash: BytesN<32> = env.storage().persistent().get(&Clave::Ultimo(placa.clone()))?;
         let registro: Registro = env.storage().persistent().get(&Clave::Expediente(hash.clone()))?;
-        let vigente = registro.vigente_hasta >= env.ledger().timestamp();
+        let vigente = registro.vigente_hasta >= env.ledger().timestamp() && !de_baja(&env, &placa);
         Some(EstadoUnidad { hash, registro, vigente })
     }
 
