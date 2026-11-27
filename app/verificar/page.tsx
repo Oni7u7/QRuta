@@ -20,6 +20,13 @@ function presentacion(v: Verificacion): { tono: TonoEstado; titulo: string; text
         ? { tono: "por-vencer", titulo: "Unidad por vencer", texto: "El mantenimiento está vigente, pero vence pronto." }
         : { tono: "vigente", titulo: "Unidad vigente", texto: "El mantenimiento de esta unidad está al día." };
     case "VENCIDO":
+      if (v.anulado) {
+        return {
+          tono: "vencido",
+          titulo: "Servicio anulado",
+          texto: `QRuta anuló en Stellar el último servicio de esta unidad (${v.anulado.motivo}). No cuenta como mantenimiento vigente.`,
+        };
+      }
       return { tono: "vencido", titulo: "Unidad vencida", texto: "El último mantenimiento de esta unidad ya superó su vigencia." };
     case "EXPIRADO":
       return {

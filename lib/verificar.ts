@@ -1,7 +1,7 @@
 import { contractId, stellarExpertContractUrl, stellarExpertTxUrl, type Checklist, type Tipo } from "./config";
 import { recomputeHash } from "./hash";
 import { placaSchema } from "./placa";
-import { expedienteOnChain } from "./soroban";
+import { anulacionOnChain, expedienteOnChain } from "./soroban";
 import { fetchAnchoredHash } from "./stellar";
 import { supabaseAdmin } from "./supabase";
 import { isValidToken } from "./totp";
@@ -41,6 +41,8 @@ export type DetalleExpediente = {
   tx_hash: string;
   stellar_expert: string;
   integridad: Integridad;
+  // Anulación del servicio en el contrato (por ejemplo, datos falsos): el servicio deja de contar como vigente.
+  anulado: { motivo: string } | null;
 };
 
 export type Verificacion =
@@ -75,6 +77,20 @@ async function ancladoEnContrato(placa: string, e: ExpedienteRow): Promise<boole
     ]);
     if (reg === "timeout") return null;
     return !!reg && reg.placa === placa && reg.taller === e.firmado_con;
+  } catch {
+    return null;
+  }
+}
+
+// Lee del contrato si el servicio fue anulado. Si Stellar no responde a tiempo, no se marca como anulado.
+async function anuladoEnContrato(e: ExpedienteRow): Promise<{ motivo: string } | null> {
+  if (e.anclaje !== "soroban") return null;
+  try {
+    const r = await Promise.race([
+      anulacionOnChain(e.hash),
+      new Promise<"timeout">((res) => setTimeout(() => res("timeout"), TIMEOUT_STELLAR_MS)),
+    ]);
+    return r && r !== "timeout" ? { motivo: r.motivo } : null;
   } catch {
     return null;
   }
@@ -133,7 +149,8 @@ export async function verificar(placaRaw: string, token: string): Promise<Verifi
   if (!data) return { estado: "SIN_MANTENIMIENTO", placa };
   const exp = data as unknown as ExpedienteRow;
 
-  const vigente = new Date(exp.vigente_hasta).getTime() >= Date.now();
+  const [integridad, anulado] = await Promise.all([comprobarIntegridad(placa, exp), anuladoEnContrato(exp)]);
+  const vigente = !anulado && new Date(exp.vigente_hasta).getTime() >= Date.now();
   return {
     estado: vigente ? "VIGENTE" : "VENCIDO",
     placa,
@@ -148,6 +165,7 @@ export async function verificar(placaRaw: string, token: string): Promise<Verifi
     hash: exp.hash,
     tx_hash: exp.tx_hash,
     stellar_expert: stellarExpertTxUrl(exp.tx_hash),
-    integridad: await comprobarIntegridad(placa, exp),
+    integridad,
+    anulado,
   };
 }
