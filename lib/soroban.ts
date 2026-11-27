@@ -55,6 +55,23 @@ const ERRORES_CONTRATO: Record<number, string> = {
   24: "Este expediente no está anulado.",
   25: "Este expediente ya fue apelado.",
   26: "No hay una apelación abierta para este expediente.",
+  27: "Este taller ya está aprobado.",
+  28: "Ya hay una solicitud de alta abierta.",
+  29: "No hay una solicitud de alta abierta.",
+  30: "La fecha no es válida.",
+  31: "No hay una delegación de firma vigente.",
+  32: "Este operador ya maneja otra unidad.",
+  33: "Solo el operador asignado puede registrar el kilometraje.",
+  34: "El kilometraje debe ser mayor que la última lectura.",
+  35: "Ya hay una cita de servicio programada.",
+  36: "No hay una cita programada.",
+  37: "Esta cuenta es de un taller.",
+  38: "Esta cuenta ya es de la autoridad.",
+  39: "Solo la autoridad puede hacer esto.",
+  40: "La prórroga debe ser de 1 a 15 días.",
+  41: "Este expediente ya tuvo una prórroga.",
+  42: "No hay un cambio de admin propuesto para esta cuenta.",
+  43: "Esa cuenta ya es el admin.",
 };
 
 export class SorobanError extends Error {
