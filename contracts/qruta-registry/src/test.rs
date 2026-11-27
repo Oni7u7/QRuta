@@ -854,3 +854,305 @@ fn apelar_valida_taller_anulacion_y_correccion() {
     p.client.suspender_taller(&p.taller);
     assert_eq!(p.client.try_apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Suspendido")), Err(Ok(Error::TallerNoAprobado)));
 }
+
+// ── v5: alta, delegación, operación, autoridad y gobierno ──
+
+fn firmante(p: &Prueba) -> Address {
+    p.env.auths()[0].0.clone()
+}
+
+#[test]
+fn solicitud_de_alta_y_rechazo() {
+    let p = preparar();
+    let h = hash(&p.env, 70);
+    p.client.solicitar_alta(&p.taller, &h);
+    assert_eq!(firmante(&p), p.taller);
+    assert_eq!(p.client.solicitud(&p.taller).unwrap().huella, h);
+    assert_eq!(p.client.try_solicitar_alta(&p.taller, &h), Err(Ok(Error::SolicitudAbierta)));
+
+    assert_eq!(p.client.try_rechazar_solicitud(&p.taller, &motivo(&p.env, "x")), Err(Ok(Error::MotivoInvalido)));
+    p.client.rechazar_solicitud(&p.taller, &motivo(&p.env, "RFC no coincide"));
+    assert_eq!(firmante(&p), p.admin);
+    assert_eq!(p.client.solicitud(&p.taller), None);
+    assert_eq!(p.client.try_rechazar_solicitud(&p.taller, &motivo(&p.env, "Otra vez")), Err(Ok(Error::SinSolicitud)));
+
+    // Vuelve a solicitar y el admin la aprueba: la solicitud se cierra.
+    p.client.solicitar_alta(&p.taller, &h);
+    p.client.aprobar_taller(&p.taller);
+    assert_eq!(p.client.solicitud(&p.taller), None);
+    assert_eq!(p.client.try_solicitar_alta(&p.taller, &h), Err(Ok(Error::YaAprobado)));
+}
+
+#[test]
+fn delegacion_de_firma() {
+    let p = preparar();
+    let empleado = Address::generate(&p.env);
+    let ahora = FECHA + DIA;
+    assert_eq!(p.client.try_delegar_firma(&p.taller, &empleado, &(ahora + DIA)), Err(Ok(Error::TallerNoAprobado)));
+    p.client.aprobar_taller(&p.taller);
+    assert_eq!(p.client.try_delegar_firma(&p.taller, &p.taller, &(ahora + DIA)), Err(Ok(Error::MismoTaller)));
+    assert_eq!(p.client.try_delegar_firma(&p.taller, &empleado, &ahora), Err(Ok(Error::FechaInvalida)));
+    assert_eq!(p.client.try_delegar_firma(&p.taller, &empleado, &(ahora + 91 * DIA)), Err(Ok(Error::FechaInvalida)));
+
+    p.client.delegar_firma(&p.taller, &empleado, &(ahora + 30 * DIA));
+    assert_eq!(p.client.delegacion(&p.taller, &empleado), Some(ahora + 30 * DIA));
+
+    let pl = placa(&p.env, "DEL001");
+    p.client.registrar_como_delegado(&empleado, &p.taller, &pl, &hash(&p.env, 1), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(firmante(&p), empleado);
+    assert_eq!(p.client.expediente(&hash(&p.env, 1)).unwrap().taller, p.taller);
+
+    p.client.revocar_delegado(&p.taller, &empleado);
+    assert_eq!(p.client.try_revocar_delegado(&p.taller, &empleado), Err(Ok(Error::SinDelegacion)));
+    let r = p.client.try_registrar_como_delegado(&empleado, &p.taller, &pl, &hash(&p.env, 2), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(r, Err(Ok(Error::SinDelegacion)));
+}
+
+#[test]
+fn la_delegacion_vencida_o_con_taller_suspendido_no_sirve() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let empleado = Address::generate(&p.env);
+    p.client.delegar_firma(&p.taller, &empleado, &(FECHA + 3 * DIA));
+    let pl = placa(&p.env, "DEL001");
+
+    p.client.suspender_taller(&p.taller);
+    let r = p.client.try_registrar_como_delegado(&empleado, &p.taller, &pl, &hash(&p.env, 1), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(r, Err(Ok(Error::TallerNoAprobado)));
+
+    p.client.aprobar_taller(&p.taller);
+    p.env.ledger().set_timestamp(FECHA + 4 * DIA);
+    let r = p.client.try_registrar_como_delegado(&empleado, &p.taller, &pl, &hash(&p.env, 1), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(r, Err(Ok(Error::SinDelegacion)));
+}
+
+#[test]
+fn asignar_operador_reglas() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let op = Address::generate(&p.env);
+    let extrano = Address::generate(&p.env);
+    assert_eq!(p.client.try_asignar_operador(&extrano, &pl, &op), Err(Ok(Error::NoEsCustodio)));
+    assert_eq!(p.client.try_asignar_operador(&p.taller, &pl, &p.taller), Err(Ok(Error::MismoTaller)));
+    p.client.asignar_operador(&p.taller, &pl, &op);
+    assert_eq!(p.client.operador(&pl), Some(op.clone()));
+
+    // El mismo operador no maneja dos unidades.
+    let pl2 = placa(&p.env, "XYZ789");
+    p.client.registrar(&p.taller, &pl2, &hash(&p.env, 2), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(p.client.try_asignar_operador(&p.taller, &pl2, &op), Err(Ok(Error::OperadorOcupado)));
+
+    // Cambiar de operador libera al anterior.
+    let op2 = Address::generate(&p.env);
+    p.client.asignar_operador(&p.taller, &pl, &op2);
+    p.client.asignar_operador(&p.taller, &pl2, &op);
+
+    p.client.dar_de_baja(&p.taller, &pl, &motivo(&p.env, "Siniestro"));
+    assert_eq!(p.client.try_asignar_operador(&p.taller, &pl, &op2), Err(Ok(Error::UnidadDeBaja)));
+}
+
+#[test]
+fn kilometraje_solo_sube_y_pone_en_revision() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let op = Address::generate(&p.env);
+    assert_eq!(p.client.try_registrar_kilometraje(&op, &pl, &1000), Err(Ok(Error::NoEsOperador)));
+    p.client.asignar_operador(&p.taller, &pl, &op);
+
+    assert_eq!(p.client.registrar_kilometraje(&op, &pl, &120_000), 0);
+    assert_eq!(firmante(&p), op);
+    assert_eq!(p.client.try_registrar_kilometraje(&op, &pl, &120_000), Err(Ok(Error::KilometrajeInvalido)));
+    assert_eq!(p.client.try_registrar_kilometraje(&op, &pl, &119_000), Err(Ok(Error::KilometrajeInvalido)));
+    assert_eq!(p.client.registrar_kilometraje(&op, &pl, &125_000), 5_000);
+    assert_eq!(p.client.revision(&pl), None);
+    assert_eq!(p.client.registrar_kilometraje(&op, &pl, &130_001), 10_001);
+    assert!(p.client.revision(&pl).unwrap().en_revision);
+
+    // Un servicio nuevo reinicia la cuenta y el taller atiende la revisión.
+    p.env.ledger().set_sequence_number(p.env.ledger().sequence() + 5);
+    let nuevo = hash(&p.env, 2);
+    p.client.registrar(&p.taller, &pl, &nuevo, &tipo(&p.env, "preventivo"), &(FECHA + DIA), &(FECHA + 91 * DIA));
+    p.client.atender_reporte(&p.taller, &pl, &nuevo);
+    assert_eq!(p.client.revision(&pl), None);
+    assert_eq!(p.client.registrar_kilometraje(&op, &pl, &131_000), 0);
+    assert_eq!(p.client.kilometraje(&pl).unwrap().base, 131_000);
+}
+
+#[test]
+fn programar_y_cancelar_cita() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let ahora = FECHA + DIA;
+    // Vigente hasta FECHA + 90 días: la cita puede caer hasta 30 días después.
+    assert_eq!(p.client.try_programar_servicio(&p.taller, &pl, &ahora), Err(Ok(Error::FechaInvalida)));
+    assert_eq!(p.client.try_programar_servicio(&p.taller, &pl, &(FECHA + 121 * DIA)), Err(Ok(Error::FechaInvalida)));
+    let otro = Address::generate(&p.env);
+    assert_eq!(p.client.try_programar_servicio(&otro, &pl, &(FECHA + 80 * DIA)), Err(Ok(Error::NoEsCustodio)));
+
+    p.client.programar_servicio(&p.taller, &pl, &(FECHA + 80 * DIA));
+    assert_eq!(p.client.cita(&pl).unwrap().fecha, FECHA + 80 * DIA);
+    assert_eq!(p.client.try_programar_servicio(&p.taller, &pl, &(FECHA + 85 * DIA)), Err(Ok(Error::CitaAbierta)));
+
+    assert_eq!(p.client.try_cancelar_cita(&otro, &pl), Err(Ok(Error::NoEsDelTaller)));
+    p.client.cancelar_cita(&p.taller, &pl);
+    assert_eq!(p.client.cita(&pl), None);
+    assert_eq!(p.client.try_cancelar_cita(&p.taller, &pl), Err(Ok(Error::SinCita)));
+}
+
+#[test]
+fn una_cita_que_ya_paso_no_se_cancela_pero_se_reemplaza() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    p.client.programar_servicio(&p.taller, &pl, &(FECHA + 10 * DIA));
+    p.env.ledger().set_timestamp(FECHA + 11 * DIA);
+    assert_eq!(p.client.try_cancelar_cita(&p.taller, &pl), Err(Ok(Error::FechaInvalida)));
+    p.client.programar_servicio(&p.taller, &pl, &(FECHA + 20 * DIA));
+}
+
+#[test]
+fn nombrar_autoridad_reglas() {
+    let p = preparar();
+    let aut = Address::generate(&p.env);
+    p.client.nombrar_autoridad(&aut);
+    assert_eq!(firmante(&p), p.admin);
+    assert!(p.client.es_autoridad(&aut));
+    assert_eq!(p.client.try_nombrar_autoridad(&aut), Err(Ok(Error::YaEsAutoridad)));
+    p.client.aprobar_taller(&p.taller);
+    assert_eq!(p.client.try_nombrar_autoridad(&p.taller), Err(Ok(Error::EsTaller)));
+    assert_eq!(p.client.try_solicitar_alta(&aut, &hash(&p.env, 70)), Err(Ok(Error::YaEsAutoridad)));
+}
+
+#[test]
+fn inspeccion_reprobada_pone_en_revision() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let aut = Address::generate(&p.env);
+    let ev = hash(&p.env, 60);
+    assert_eq!(p.client.try_inspeccion_vial(&aut, &pl, &false, &ev), Err(Ok(Error::NoEsAutoridad)));
+    p.client.nombrar_autoridad(&aut);
+    assert_eq!(p.client.try_inspeccion_vial(&aut, &placa(&p.env, "ZZZ999"), &true, &ev), Err(Ok(Error::PlacaSinRegistro)));
+
+    p.client.inspeccion_vial(&aut, &pl, &true, &ev);
+    assert_eq!(firmante(&p), aut);
+    assert_eq!(p.client.revision(&pl), None);
+    p.client.inspeccion_vial(&aut, &pl, &false, &ev);
+    assert!(!p.client.inspeccion(&pl).unwrap().aprobada);
+    assert!(p.client.revision(&pl).unwrap().en_revision);
+}
+
+#[test]
+fn prorroga_de_vigencia() {
+    let p = preparar();
+    con_unidad(&p);
+    let h = hash(&p.env, 1);
+    let aut = Address::generate(&p.env);
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &h, &10), Err(Ok(Error::NoEsAutoridad)));
+    p.client.nombrar_autoridad(&aut);
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &h, &0), Err(Ok(Error::ProrrogaInvalida)));
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &h, &16), Err(Ok(Error::ProrrogaInvalida)));
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &hash(&p.env, 9), &5), Err(Ok(Error::ExpedienteNoExiste)));
+
+    assert_eq!(p.client.prorrogar_vigencia(&aut, &h, &15), FECHA + 105 * DIA);
+    assert_eq!(p.client.expediente(&h).unwrap().vigente_hasta, FECHA + 105 * DIA);
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &h, &1), Err(Ok(Error::YaProrrogado)));
+
+    // La unidad sigue vigente durante la prórroga.
+    p.env.ledger().set_timestamp(FECHA + 100 * DIA);
+    assert!(p.client.estado(&placa(&p.env, "ABC123")).unwrap().vigente);
+}
+
+#[test]
+fn no_se_prorroga_un_expediente_anulado() {
+    let p = preparar();
+    con_unidad(&p);
+    let aut = Address::generate(&p.env);
+    p.client.nombrar_autoridad(&aut);
+    p.client.anular_expediente(&hash(&p.env, 1), &motivo(&p.env, "Datos falsos"));
+    assert_eq!(p.client.try_prorrogar_vigencia(&aut, &hash(&p.env, 1), &5), Err(Ok(Error::ExpedienteAnulado)));
+}
+
+#[test]
+fn retirar_reporte_puede_sacar_de_revision() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let pasajeros: [Address; 3] = core::array::from_fn(|_| Address::generate(&p.env));
+    for x in &pasajeros {
+        p.client.reportar_falla(x, &pl, &hash(&p.env, 50));
+    }
+    assert!(p.client.revision(&pl).unwrap().en_revision);
+
+    assert_eq!(p.client.retirar_reporte(&pasajeros[0], &pl), 2);
+    assert_eq!(firmante(&p), pasajeros[0]);
+    assert!(!p.client.revision(&pl).unwrap().en_revision);
+    assert_eq!(p.client.try_retirar_reporte(&pasajeros[0], &pl), Err(Ok(Error::SinReportes)));
+    assert_eq!(p.client.try_retirar_reporte(&Address::generate(&p.env), &pl), Err(Ok(Error::SinReportes)));
+    p.client.retirar_reporte(&pasajeros[1], &pl);
+    p.client.retirar_reporte(&pasajeros[2], &pl);
+    assert_eq!(p.client.revision(&pl), None);
+}
+
+#[test]
+fn retirar_reporte_no_quita_una_revision_por_inspeccion() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let pasajero = Address::generate(&p.env);
+    p.client.reportar_falla(&pasajero, &pl, &hash(&p.env, 50));
+    let aut = Address::generate(&p.env);
+    p.client.nombrar_autoridad(&aut);
+    p.client.inspeccion_vial(&aut, &pl, &false, &hash(&p.env, 60));
+    assert_eq!(p.client.retirar_reporte(&pasajero, &pl), 0);
+    assert!(p.client.revision(&pl).unwrap().en_revision);
+}
+
+#[test]
+fn un_reporte_de_un_ciclo_atendido_no_se_retira() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let viejo = Address::generate(&p.env);
+    p.client.reportar_falla(&viejo, &pl, &hash(&p.env, 50));
+    p.env.ledger().set_sequence_number(p.env.ledger().sequence() + 5);
+    p.client.registrar(&p.taller, &pl, &hash(&p.env, 2), &tipo(&p.env, "preventivo"), &(FECHA + DIA), &(FECHA + 91 * DIA));
+    p.client.atender_reporte(&p.taller, &pl, &hash(&p.env, 2));
+
+    p.env.ledger().set_sequence_number(p.env.ledger().sequence() + 5);
+    p.client.reportar_falla(&Address::generate(&p.env), &pl, &hash(&p.env, 51));
+    assert_eq!(p.client.try_retirar_reporte(&viejo, &pl), Err(Ok(Error::SinReportes)));
+}
+
+#[test]
+fn cambio_de_admin_en_dos_pasos() {
+    let p = preparar();
+    let nuevo = Address::generate(&p.env);
+    assert_eq!(p.client.try_proponer_admin(&p.admin), Err(Ok(Error::MismoAdmin)));
+    assert_eq!(p.client.try_aceptar_admin(&nuevo), Err(Ok(Error::SinPropuesta)));
+
+    p.client.proponer_admin(&nuevo);
+    assert_eq!(firmante(&p), p.admin);
+    assert_eq!(p.client.admin(), p.admin);
+    assert_eq!(p.client.admin_propuesto(), Some(nuevo.clone()));
+    assert_eq!(p.client.try_aceptar_admin(&Address::generate(&p.env)), Err(Ok(Error::SinPropuesta)));
+
+    p.client.aceptar_admin(&nuevo);
+    assert_eq!(firmante(&p), nuevo);
+    assert_eq!(p.client.admin(), nuevo);
+    assert_eq!(p.client.admin_propuesto(), None);
+}
+
+#[test]
+fn solo_el_admin_propone_y_solo_el_propuesto_acepta() {
+    let env = Env::default();
+    let admin = Address::generate(&env);
+    let id = env.register(QrutaRegistry, (&admin,));
+    let client = QrutaRegistryClient::new(&env, &id);
+    let nuevo = Address::generate(&env);
+    assert!(client.try_proponer_admin(&nuevo).is_err());
+    client
+        .mock_auths(&[MockAuth {
+            address: &admin,
+            invoke: &MockAuthInvoke { contract: &id, fn_name: "proponer_admin", args: (&nuevo,).into_val(&env), sub_invokes: &[] },
+        }])
+        .proponer_admin(&nuevo);
+    // Sin la firma del propuesto no cambia.
+    assert!(client.try_aceptar_admin(&nuevo).is_err());
+    assert_eq!(client.admin(), admin);
+}
