@@ -22,6 +22,14 @@ const DIA: u64 = 86_400;
 const TOLERANCIA_FECHA: u64 = 2 * DIA;
 // Con 3 reportes de pasajeros distintos (o de días distintos) la unidad queda en revisión.
 const REPORTES_PARA_REVISION: u32 = 3;
+// Kilómetros desde el último servicio a partir de los cuales la unidad queda en revisión.
+const KM_PARA_REVISION: u64 = 10_000;
+// Una delegación de firma dura como máximo 90 días.
+const DELEGACION_MAXIMA: u64 = 90 * DIA;
+// Una cita puede caer hasta 30 días después de que vence el servicio vigente.
+const CITA_MARGEN: u64 = 30 * DIA;
+// Una prórroga de la autoridad es de 15 días como máximo.
+const PRORROGA_MAXIMA: u32 = 15;
 // Máximo de expedientes en un solo `registrar_lote` (límite de recursos por transacción).
 const LOTE_MAXIMO: u32 = 10;
 
@@ -43,6 +51,19 @@ enum Clave {
     // Claves nuevas en v4.
     Baja(String),
     Apelacion(BytesN<32>),
+    // Claves nuevas en v5.
+    Solicitud(Address),
+    Delegado(Address, Address),
+    Operador(String),
+    OperadorDe(Address),
+    Kilometraje(String),
+    Cita(String),
+    Autoridad(Address),
+    Inspeccion(String),
+    Prorroga(BytesN<32>),
+    AdminPropuesto,
+    ReporteCiclo(String, Address),
+    CausaExterna(String),
 }
 
 /// Lo que queda on-chain de cada expediente.
@@ -108,6 +129,43 @@ pub struct Apelacion {
     pub aceptada: bool,
 }
 
+/// Solicitud de alta de un taller (huella del RFC y documentos, fuera de la cadena).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Solicitud {
+    pub huella: BytesN<32>,
+    pub ledger: u32,
+}
+
+/// Lecturas de odómetro de una unidad.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Kilometraje {
+    /// Última lectura.
+    pub ultimo: u64,
+    /// Lectura al empezar a contar desde el servicio `hash_base`.
+    pub base: u64,
+    pub hash_base: BytesN<32>,
+}
+
+/// Cita de servicio programada.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Cita {
+    pub taller: Address,
+    pub fecha: u64,
+}
+
+/// Última inspección en la vía pública.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Inspeccion {
+    pub autoridad: Address,
+    pub aprobada: bool,
+    pub evidencia: BytesN<32>,
+    pub ledger: u32,
+}
+
 /// Un expediente dentro de `registrar_lote`.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -158,6 +216,23 @@ pub enum Error {
     NoEstaAnulado = 24,
     YaApelado = 25,
     SinApelacion = 26,
+    YaAprobado = 27,
+    SolicitudAbierta = 28,
+    SinSolicitud = 29,
+    FechaInvalida = 30,
+    SinDelegacion = 31,
+    OperadorOcupado = 32,
+    NoEsOperador = 33,
+    KilometrajeInvalido = 34,
+    CitaAbierta = 35,
+    SinCita = 36,
+    EsTaller = 37,
+    YaEsAutoridad = 38,
+    NoEsAutoridad = 39,
+    ProrrogaInvalida = 40,
+    YaProrrogado = 41,
+    SinPropuesta = 42,
+    MismoAdmin = 43,
 }
 
 #[contractevent]
@@ -301,6 +376,132 @@ pub struct ApelacionResuelta {
     pub aceptada: bool,
 }
 
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AltaSolicitada {
+    #[topic]
+    pub taller: Address,
+    pub huella: BytesN<32>,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SolicitudRechazada {
+    #[topic]
+    pub taller: Address,
+    pub motivo: String,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FirmaDelegada {
+    #[topic]
+    pub taller: Address,
+    pub empleado: Address,
+    pub hasta: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DelegadoRevocado {
+    #[topic]
+    pub taller: Address,
+    pub empleado: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RegistroDelegado {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub taller: Address,
+    pub empleado: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OperadorAsignado {
+    #[topic]
+    pub placa: String,
+    pub operador: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct KilometrajeRegistrado {
+    #[topic]
+    pub placa: String,
+    pub km: u64,
+    pub desde_servicio: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ServicioProgramado {
+    #[topic]
+    pub placa: String,
+    pub taller: Address,
+    pub fecha: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CitaCancelada {
+    #[topic]
+    pub placa: String,
+    pub taller: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AutoridadNombrada {
+    #[topic]
+    pub autoridad: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InspeccionVial {
+    #[topic]
+    pub placa: String,
+    pub autoridad: Address,
+    pub aprobada: bool,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct VigenciaProrrogada {
+    #[topic]
+    pub placa: String,
+    pub hash: BytesN<32>,
+    pub dias: u32,
+    pub vigente_hasta: u64,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ReporteRetirado {
+    #[topic]
+    pub placa: String,
+    pub reportante: Address,
+    pub reportes: u32,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminPropuesto {
+    pub actual: Address,
+    pub nuevo: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminCambiado {
+    pub anterior: Address,
+    pub nuevo: Address,
+}
+
 #[contract]
 pub struct QrutaRegistry;
 
@@ -341,6 +542,33 @@ fn custodio(env: &Env, placa: &String) -> Option<Address> {
     let hash: BytesN<32> = env.storage().persistent().get(&Clave::Ultimo(placa.clone()))?;
     let registro: Registro = env.storage().persistent().get(&Clave::Expediente(hash))?;
     Some(registro.taller)
+}
+
+fn es_autoridad(env: &Env, cuenta: &Address) -> bool {
+    env.storage().persistent().get(&Clave::Autoridad(cuenta.clone())).unwrap_or(false)
+}
+
+/// Pone la unidad en revisión por una causa que no son los reportes de pasajeros
+/// (kilometraje excedido o inspección reprobada). Devuelve true si acaba de entrar en revisión.
+fn revision_externa(env: &Env, placa: &String, evidencia: BytesN<32>) -> bool {
+    let clave_rev = Clave::Revision(placa.clone());
+    let mut rev = env.storage().persistent().get::<_, Revision>(&clave_rev).unwrap_or(Revision {
+        reportes: 0,
+        en_revision: false,
+        desde_ledger: env.ledger().sequence(),
+        ultima_evidencia: evidencia,
+    });
+    let entra = !rev.en_revision;
+    rev.en_revision = true;
+    env.storage().persistent().set(&clave_rev, &rev);
+    extender(env, &clave_rev);
+    let clave_causa = Clave::CausaExterna(placa.clone());
+    env.storage().persistent().set(&clave_causa, &true);
+    extender(env, &clave_causa);
+    if entra {
+        UnidadEnRevision { placa: placa.clone(), reportes: rev.reportes }.publish(env);
+    }
+    entra
 }
 
 fn de_baja(env: &Env, placa: &String) -> bool {
@@ -452,6 +680,7 @@ impl QrutaRegistry {
         let clave = Clave::Taller(taller.clone());
         env.storage().persistent().set(&clave, &true);
         extender(&env, &clave);
+        env.storage().persistent().remove(&Clave::Solicitud(taller.clone()));
         extender_instancia(&env);
         TallerAprobado { taller }.publish(&env);
     }
@@ -635,6 +864,9 @@ impl QrutaRegistry {
         }
         env.storage().persistent().set(&clave_rev, &rev);
         extender(&env, &clave_rev);
+        let clave_ciclo = Clave::ReporteCiclo(placa.clone(), reportante.clone());
+        env.storage().persistent().set(&clave_ciclo, &env.ledger().sequence());
+        extender(&env, &clave_ciclo);
         extender_instancia(&env);
 
         FallaReportada { placa: placa.clone(), reportante, evidencia, reportes: rev.reportes }.publish(&env);
@@ -668,6 +900,7 @@ impl QrutaRegistry {
             return Err(Error::ExpedienteAnterior);
         }
         env.storage().persistent().remove(&clave_rev);
+        env.storage().persistent().remove(&Clave::CausaExterna(placa.clone()));
         extender_instancia(&env);
         ReporteAtendido { placa, taller, hash, reportes: rev.reportes }.publish(&env);
         Ok(())
@@ -827,6 +1060,397 @@ impl QrutaRegistry {
         extender_instancia(&env);
         ApelacionResuelta { placa: registro.placa, hash, aceptada: aceptar }.publish(&env);
         Ok(())
+    }
+
+    // ── v5: alta de talleres y firma delegada ──
+
+    /// Un taller pide su alta en QRuta con la huella de su RFC y documentos. Una solicitud abierta a la vez.
+    pub fn solicitar_alta(env: Env, taller: Address, huella_rfc: BytesN<32>) -> Result<(), Error> {
+        taller.require_auth();
+        if esta_aprobado(&env, &taller) {
+            return Err(Error::YaAprobado);
+        }
+        if es_autoridad(&env, &taller) {
+            return Err(Error::YaEsAutoridad);
+        }
+        let clave = Clave::Solicitud(taller.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::SolicitudAbierta);
+        }
+        env.storage().persistent().set(&clave, &Solicitud { huella: huella_rfc.clone(), ledger: env.ledger().sequence() });
+        extender(&env, &clave);
+        extender_instancia(&env);
+        AltaSolicitada { taller, huella: huella_rfc }.publish(&env);
+        Ok(())
+    }
+
+    /// El admin rechaza una solicitud de alta con su motivo. El taller puede volver a solicitar.
+    pub fn rechazar_solicitud(env: Env, taller: Address, motivo: String) -> Result<(), Error> {
+        admin(&env).require_auth();
+        if !motivo_valido(&motivo) {
+            return Err(Error::MotivoInvalido);
+        }
+        let clave = Clave::Solicitud(taller.clone());
+        if !env.storage().persistent().has(&clave) {
+            return Err(Error::SinSolicitud);
+        }
+        env.storage().persistent().remove(&clave);
+        extender_instancia(&env);
+        SolicitudRechazada { taller, motivo }.publish(&env);
+        Ok(())
+    }
+
+    /// El taller autoriza a un empleado a registrar servicios a su nombre hasta `hasta` (máximo 90 días).
+    pub fn delegar_firma(env: Env, taller: Address, empleado: Address, hasta: u64) -> Result<(), Error> {
+        taller.require_auth();
+        if !esta_aprobado(&env, &taller) {
+            return Err(Error::TallerNoAprobado);
+        }
+        if empleado == taller {
+            return Err(Error::MismoTaller);
+        }
+        let ahora = env.ledger().timestamp();
+        if hasta <= ahora || hasta - ahora > DELEGACION_MAXIMA {
+            return Err(Error::FechaInvalida);
+        }
+        let clave = Clave::Delegado(taller.clone(), empleado.clone());
+        env.storage().persistent().set(&clave, &hasta);
+        extender(&env, &clave);
+        extender_instancia(&env);
+        FirmaDelegada { taller, empleado, hasta }.publish(&env);
+        Ok(())
+    }
+
+    /// El taller quita la delegación a un empleado.
+    pub fn revocar_delegado(env: Env, taller: Address, empleado: Address) -> Result<(), Error> {
+        taller.require_auth();
+        let clave = Clave::Delegado(taller.clone(), empleado.clone());
+        if !env.storage().persistent().has(&clave) {
+            return Err(Error::SinDelegacion);
+        }
+        env.storage().persistent().remove(&clave);
+        extender_instancia(&env);
+        DelegadoRevocado { taller, empleado }.publish(&env);
+        Ok(())
+    }
+
+    /// Un empleado con delegación vigente registra un servicio a nombre del taller.
+    /// Firma el empleado; el expediente queda a nombre del taller y pasa las reglas de `registrar`.
+    #[allow(clippy::too_many_arguments)]
+    pub fn registrar_como_delegado(
+        env: Env,
+        empleado: Address,
+        taller: Address,
+        placa: String,
+        hash: BytesN<32>,
+        tipo: Symbol,
+        fecha: u64,
+        vigente_hasta: u64,
+    ) -> Result<(), Error> {
+        empleado.require_auth();
+        let hasta: u64 = env
+            .storage()
+            .persistent()
+            .get(&Clave::Delegado(taller.clone(), empleado.clone()))
+            .ok_or(Error::SinDelegacion)?;
+        if hasta < env.ledger().timestamp() {
+            return Err(Error::SinDelegacion);
+        }
+        guardar_registro(&env, taller.clone(), placa.clone(), hash.clone(), tipo, fecha, vigente_hasta, None)?;
+        RegistroDelegado { placa, hash, taller, empleado }.publish(&env);
+        Ok(())
+    }
+
+    // ── v5: unidad en operación ──
+
+    /// El taller responsable asigna el operador (chofer) de la unidad. Un operador maneja una sola unidad.
+    pub fn asignar_operador(env: Env, taller: Address, placa: String, operador: Address) -> Result<(), Error> {
+        taller.require_auth();
+        let responsable = custodio(&env, &placa).ok_or(Error::PlacaSinRegistro)?;
+        if responsable != taller {
+            return Err(Error::NoEsCustodio);
+        }
+        if !esta_aprobado(&env, &taller) {
+            return Err(Error::TallerNoAprobado);
+        }
+        if operador == taller {
+            return Err(Error::MismoTaller);
+        }
+        if de_baja(&env, &placa) {
+            return Err(Error::UnidadDeBaja);
+        }
+        let clave_de = Clave::OperadorDe(operador.clone());
+        if let Some(otra) = env.storage().persistent().get::<_, String>(&clave_de) {
+            if otra != placa {
+                return Err(Error::OperadorOcupado);
+            }
+        }
+        let clave_op = Clave::Operador(placa.clone());
+        if let Some(anterior) = env.storage().persistent().get::<_, Address>(&clave_op) {
+            env.storage().persistent().remove(&Clave::OperadorDe(anterior));
+        }
+        env.storage().persistent().set(&clave_op, &operador);
+        env.storage().persistent().set(&clave_de, &placa);
+        extender(&env, &clave_op);
+        extender(&env, &clave_de);
+        extender_instancia(&env);
+        OperadorAsignado { placa, operador }.publish(&env);
+        Ok(())
+    }
+
+    /// El operador asignado registra la lectura del odómetro; solo puede subir.
+    /// Si pasa de 10,000 km desde el servicio vigente, la unidad queda en revisión.
+    /// Devuelve los km recorridos desde ese servicio.
+    pub fn registrar_kilometraje(env: Env, operador: Address, placa: String, km: u64) -> Result<u64, Error> {
+        operador.require_auth();
+        if env.storage().persistent().get::<_, Address>(&Clave::Operador(placa.clone())) != Some(operador) {
+            return Err(Error::NoEsOperador);
+        }
+        if de_baja(&env, &placa) {
+            return Err(Error::UnidadDeBaja);
+        }
+        let servicio: BytesN<32> =
+            env.storage().persistent().get(&Clave::Ultimo(placa.clone())).ok_or(Error::PlacaSinRegistro)?;
+        let clave = Clave::Kilometraje(placa.clone());
+        let previo: Option<Kilometraje> = env.storage().persistent().get(&clave);
+        if let Some(p) = &previo {
+            if km <= p.ultimo {
+                return Err(Error::KilometrajeInvalido);
+            }
+        }
+        let base = match previo {
+            Some(p) if p.hash_base == servicio => p.base,
+            _ => km,
+        };
+        env.storage().persistent().set(&clave, &Kilometraje { ultimo: km, base, hash_base: servicio.clone() });
+        extender(&env, &clave);
+        let recorridos = km - base;
+        if recorridos > KM_PARA_REVISION {
+            revision_externa(&env, &placa, servicio);
+        }
+        extender_instancia(&env);
+        KilometrajeRegistrado { placa, km, desde_servicio: recorridos }.publish(&env);
+        Ok(recorridos)
+    }
+
+    /// El taller responsable programa el siguiente servicio: fecha futura y como máximo 30 días después
+    /// de que vence el servicio vigente. Una cita abierta a la vez.
+    pub fn programar_servicio(env: Env, taller: Address, placa: String, fecha: u64) -> Result<(), Error> {
+        taller.require_auth();
+        let responsable = custodio(&env, &placa).ok_or(Error::PlacaSinRegistro)?;
+        if responsable != taller {
+            return Err(Error::NoEsCustodio);
+        }
+        if !esta_aprobado(&env, &taller) {
+            return Err(Error::TallerNoAprobado);
+        }
+        if de_baja(&env, &placa) {
+            return Err(Error::UnidadDeBaja);
+        }
+        let ahora = env.ledger().timestamp();
+        let hash: BytesN<32> =
+            env.storage().persistent().get(&Clave::Ultimo(placa.clone())).ok_or(Error::PlacaSinRegistro)?;
+        let registro: Registro =
+            env.storage().persistent().get(&Clave::Expediente(hash)).ok_or(Error::PlacaSinRegistro)?;
+        if fecha <= ahora || fecha > registro.vigente_hasta.max(ahora) + CITA_MARGEN {
+            return Err(Error::FechaInvalida);
+        }
+        let clave = Clave::Cita(placa.clone());
+        if let Some(c) = env.storage().persistent().get::<_, Cita>(&clave) {
+            if c.fecha > ahora {
+                return Err(Error::CitaAbierta);
+            }
+        }
+        env.storage().persistent().set(&clave, &Cita { taller: taller.clone(), fecha });
+        extender(&env, &clave);
+        extender_instancia(&env);
+        ServicioProgramado { placa, taller, fecha }.publish(&env);
+        Ok(())
+    }
+
+    /// Quien programó la cita la cancela antes de que llegue la fecha.
+    pub fn cancelar_cita(env: Env, taller: Address, placa: String) -> Result<(), Error> {
+        taller.require_auth();
+        let clave = Clave::Cita(placa.clone());
+        let cita: Cita = env.storage().persistent().get(&clave).ok_or(Error::SinCita)?;
+        if cita.taller != taller {
+            return Err(Error::NoEsDelTaller);
+        }
+        if cita.fecha <= env.ledger().timestamp() {
+            return Err(Error::FechaInvalida);
+        }
+        env.storage().persistent().remove(&clave);
+        extender_instancia(&env);
+        CitaCancelada { placa, taller }.publish(&env);
+        Ok(())
+    }
+
+    // ── v5: autoridad ──
+
+    /// El admin da de alta una cuenta de la autoridad de movilidad. No puede ser un taller.
+    pub fn nombrar_autoridad(env: Env, cuenta: Address) -> Result<(), Error> {
+        admin(&env).require_auth();
+        if env.storage().persistent().has(&Clave::Taller(cuenta.clone())) {
+            return Err(Error::EsTaller);
+        }
+        let clave = Clave::Autoridad(cuenta.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::YaEsAutoridad);
+        }
+        env.storage().persistent().set(&clave, &true);
+        extender(&env, &clave);
+        extender_instancia(&env);
+        AutoridadNombrada { autoridad: cuenta }.publish(&env);
+        Ok(())
+    }
+
+    /// La autoridad registra una inspección en la vía pública. Si la reprueba, la unidad queda en revisión
+    /// hasta que el taller la atienda con un servicio nuevo.
+    pub fn inspeccion_vial(
+        env: Env,
+        autoridad: Address,
+        placa: String,
+        aprobada: bool,
+        evidencia: BytesN<32>,
+    ) -> Result<(), Error> {
+        autoridad.require_auth();
+        if !es_autoridad(&env, &autoridad) {
+            return Err(Error::NoEsAutoridad);
+        }
+        if !env.storage().persistent().has(&Clave::Ultimo(placa.clone())) {
+            return Err(Error::PlacaSinRegistro);
+        }
+        let clave = Clave::Inspeccion(placa.clone());
+        let inspeccion =
+            Inspeccion { autoridad: autoridad.clone(), aprobada, evidencia: evidencia.clone(), ledger: env.ledger().sequence() };
+        env.storage().persistent().set(&clave, &inspeccion);
+        extender(&env, &clave);
+        if !aprobada {
+            revision_externa(&env, &placa, evidencia);
+        }
+        extender_instancia(&env);
+        InspeccionVial { placa, autoridad, aprobada }.publish(&env);
+        Ok(())
+    }
+
+    /// La autoridad prorroga la vigencia de un expediente (por ejemplo, talleres saturados),
+    /// de 1 a 15 días y una sola vez. Devuelve la nueva fecha de vencimiento.
+    pub fn prorrogar_vigencia(env: Env, autoridad: Address, hash: BytesN<32>, dias: u32) -> Result<u64, Error> {
+        autoridad.require_auth();
+        if !es_autoridad(&env, &autoridad) {
+            return Err(Error::NoEsAutoridad);
+        }
+        if dias == 0 || dias > PRORROGA_MAXIMA {
+            return Err(Error::ProrrogaInvalida);
+        }
+        let clave_exp = Clave::Expediente(hash.clone());
+        let mut registro: Registro = env.storage().persistent().get(&clave_exp).ok_or(Error::ExpedienteNoExiste)?;
+        if env.storage().persistent().has(&Clave::Anulado(hash.clone())) {
+            return Err(Error::ExpedienteAnulado);
+        }
+        let clave = Clave::Prorroga(hash.clone());
+        if env.storage().persistent().has(&clave) {
+            return Err(Error::YaProrrogado);
+        }
+        registro.vigente_hasta += dias as u64 * DIA;
+        env.storage().persistent().set(&clave_exp, &registro);
+        env.storage().persistent().set(&clave, &dias);
+        let ttl = ttl_para_vigencia(&env, registro.vigente_hasta);
+        extender_hasta(&env, &clave_exp, ttl);
+        extender_hasta(&env, &clave, ttl);
+        extender_instancia(&env);
+        VigenciaProrrogada { placa: registro.placa, hash, dias, vigente_hasta: registro.vigente_hasta }.publish(&env);
+        Ok(registro.vigente_hasta)
+    }
+
+    // ── v5: pasajeros y gobierno del contrato ──
+
+    /// El pasajero retira su reporte del ciclo abierto. Si los reportes bajan de 3 y no hay otra causa
+    /// (kilometraje o inspección), la unidad sale de revisión. Devuelve los reportes que quedan.
+    pub fn retirar_reporte(env: Env, reportante: Address, placa: String) -> Result<u32, Error> {
+        reportante.require_auth();
+        let clave_rev = Clave::Revision(placa.clone());
+        let mut rev: Revision = env.storage().persistent().get(&clave_rev).ok_or(Error::SinReportes)?;
+        let clave_ciclo = Clave::ReporteCiclo(placa.clone(), reportante.clone());
+        let ledger: u32 = env.storage().persistent().get(&clave_ciclo).ok_or(Error::SinReportes)?;
+        if ledger < rev.desde_ledger || rev.reportes == 0 {
+            return Err(Error::SinReportes);
+        }
+        env.storage().persistent().remove(&clave_ciclo);
+        rev.reportes -= 1;
+        let externa: bool = env.storage().persistent().get(&Clave::CausaExterna(placa.clone())).unwrap_or(false);
+        rev.en_revision = externa || rev.reportes >= REPORTES_PARA_REVISION;
+        if rev.reportes == 0 && !rev.en_revision {
+            env.storage().persistent().remove(&clave_rev);
+        } else {
+            env.storage().persistent().set(&clave_rev, &rev);
+            extender(&env, &clave_rev);
+        }
+        extender_instancia(&env);
+        ReporteRetirado { placa, reportante, reportes: rev.reportes }.publish(&env);
+        Ok(rev.reportes)
+    }
+
+    /// Primer paso para cambiar la cuenta admin: el admin actual propone a la nueva.
+    /// El cambio solo ocurre cuando la nueva acepta, para no perder el contrato por una dirección mal escrita.
+    pub fn proponer_admin(env: Env, nuevo: Address) -> Result<(), Error> {
+        let actual = admin(&env);
+        actual.require_auth();
+        if nuevo == actual {
+            return Err(Error::MismoAdmin);
+        }
+        env.storage().instance().set(&Clave::AdminPropuesto, &nuevo);
+        extender_instancia(&env);
+        AdminPropuesto { actual, nuevo }.publish(&env);
+        Ok(())
+    }
+
+    /// Segundo paso: la cuenta propuesta firma y se vuelve el admin.
+    pub fn aceptar_admin(env: Env, nuevo: Address) -> Result<(), Error> {
+        nuevo.require_auth();
+        let propuesto: Address = env.storage().instance().get(&Clave::AdminPropuesto).ok_or(Error::SinPropuesta)?;
+        if propuesto != nuevo {
+            return Err(Error::SinPropuesta);
+        }
+        let anterior = admin(&env);
+        env.storage().instance().set(&Clave::Admin, &nuevo);
+        env.storage().instance().remove(&Clave::AdminPropuesto);
+        extender_instancia(&env);
+        AdminCambiado { anterior, nuevo }.publish(&env);
+        Ok(())
+    }
+
+    pub fn solicitud(env: Env, taller: Address) -> Option<Solicitud> {
+        env.storage().persistent().get(&Clave::Solicitud(taller))
+    }
+
+    /// Fin de la delegación de un empleado, si la tiene.
+    pub fn delegacion(env: Env, taller: Address, empleado: Address) -> Option<u64> {
+        env.storage().persistent().get(&Clave::Delegado(taller, empleado))
+    }
+
+    pub fn operador(env: Env, placa: String) -> Option<Address> {
+        env.storage().persistent().get(&Clave::Operador(placa))
+    }
+
+    pub fn kilometraje(env: Env, placa: String) -> Option<Kilometraje> {
+        env.storage().persistent().get(&Clave::Kilometraje(placa))
+    }
+
+    pub fn cita(env: Env, placa: String) -> Option<Cita> {
+        env.storage().persistent().get(&Clave::Cita(placa))
+    }
+
+    pub fn es_autoridad(env: Env, cuenta: Address) -> bool {
+        es_autoridad(&env, &cuenta)
+    }
+
+    pub fn inspeccion(env: Env, placa: String) -> Option<Inspeccion> {
+        env.storage().persistent().get(&Clave::Inspeccion(placa))
+    }
+
+    pub fn admin_propuesto(env: Env) -> Option<Address> {
+        env.storage().instance().get(&Clave::AdminPropuesto)
     }
 
     /// Baja de una unidad, si la tiene.
