@@ -6,7 +6,7 @@ Expediente de mantenimiento verificable para unidades de transporte (microbús).
 - Red: **Stellar testnet** (los registros son de demostración, sin validez legal)
 - Contrato `qruta-registry`: `CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH` ([Stellar Expert](https://stellar.expert/explorer/testnet/contract/CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH))
 - Checklist del demo: [`docs/DEMO.md`](docs/DEMO.md)
-- **Video demo:** https://youtu.be/xu2S-hPWIq4
+- **Video demo:** https://youtu.be/aZuqKICcNHA
 - Versión actual: **v1.0.0** (contrato `qruta-registry` v0.5.0) · [notas de la versión](docs/release-v1.0.0.md)
 
 ## Cómo se usa
