@@ -82,7 +82,7 @@ unset STELLAR_ACCOUNT
 
 El comando imprime el ID del contrato (`C…`): ese es `QRUTA_CONTRACT_ID`.
 
-Funciones del contrato (v0.4):
+Funciones del contrato (v0.5):
 
 | Función | Firma | Qué hace |
 |---|---|---|
@@ -100,9 +100,20 @@ Funciones del contrato (v0.4):
 | `reactivar_unidad` | admin | Regresa a circulación una unidad dada de baja |
 | `apelar_anulacion` | taller | Impugna, una sola vez, la anulación de un expediente suyo (no las de corrección) |
 | `resolver_apelacion` | admin | Acepta (quita la anulación y recupera el estado de la placa) o rechaza la apelación |
-| `estado`, `expediente`, `revision`, `cofirma`, `custodio`, `baja`, `apelacion`, `anulacion`, `correccion` | lectura | Consultas gratuitas |
+| `solicitar_alta` / `rechazar_solicitud` | taller / admin | Solicitud de alta con la huella del RFC; una abierta a la vez |
+| `delegar_firma` / `revocar_delegado` | taller | Autoriza a un empleado a firmar a su nombre (máximo 90 días) |
+| `registrar_como_delegado` | empleado | Registra un servicio a nombre del taller con una delegación vigente |
+| `asignar_operador` | taller responsable | Asigna el chofer de la unidad; un operador maneja una sola unidad |
+| `registrar_kilometraje` | operador | El odómetro solo sube; con más de 10,000 km desde el servicio la unidad queda en revisión |
+| `programar_servicio` / `cancelar_cita` | taller responsable | Una cita abierta, futura y hasta 30 días después de que vence el servicio |
+| `nombrar_autoridad` | admin | Da de alta una cuenta de la autoridad de movilidad (no puede ser un taller) |
+| `inspeccion_vial` | autoridad | Inspección en la vía pública; si se reprueba, la unidad queda en revisión |
+| `prorrogar_vigencia` | autoridad | De 1 a 15 días, una vez por expediente y no sobre uno anulado |
+| `retirar_reporte` | pasajero | Retira su reporte del ciclo abierto; puede sacar la unidad de revisión |
+| `proponer_admin` / `aceptar_admin` | admin / nuevo admin | Cambio de admin en dos pasos |
+| `estado`, `expediente`, `revision`, `cofirma`, `custodio`, `baja`, `apelacion`, `anulacion`, `correccion`, `solicitud`, `delegacion`, `operador`, `kilometraje`, `cita`, `es_autoridad`, `inspeccion`, `admin_propuesto` | lectura | Consultas gratuitas |
 
-Para actualizar el contrato desplegado y probar en testnet las funciones de cada versión: `bash scripts/contrato-v3-testnet.sh` y `bash scripts/contrato-v4-testnet.sh`.
+Para actualizar el contrato desplegado y probar en testnet las funciones de cada versión: `bash scripts/contrato-v3-testnet.sh`, `bash scripts/contrato-v4-testnet.sh` y `bash scripts/contrato-v5-testnet.sh`.
 
 ### 5. Variables de entorno
 
