@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { EstadoBadge, type TonoEstado } from "@/components/marca/estado-unidad";
+import { ExpedienteAcciones } from "@/components/expediente-acciones";
 import { TallerAcciones } from "@/components/taller-acciones";
 import { abreviar, formatFecha } from "@/components/ui";
 import { getAdmin } from "@/lib/auth";
+import { listarExpedientesRecientes, type ExpedienteAdmin } from "@/lib/expedientes-admin";
 import { listarSolicitudes, type Solicitud } from "@/lib/solicitudes-admin";
 import { listarTalleres, type TallerAdmin } from "@/lib/talleres-admin";
 
@@ -17,7 +19,11 @@ export default async function AdminPage() {
   // El layout muestra el aviso de acceso; aquí solo evitamos consultar datos sin permiso.
   if (!(await getAdmin())) return null;
 
-  const [{ pendientes, revisadas }, talleres] = await Promise.all([listarSolicitudes(), listarTalleres()]);
+  const [{ pendientes, revisadas }, talleres, expedientes] = await Promise.all([
+    listarSolicitudes(),
+    listarTalleres(),
+    listarExpedientesRecientes(),
+  ]);
 
   return (
     <>
@@ -50,6 +56,24 @@ export default async function AdminPage() {
           <ul className="mt-3 divide-y divide-linea rounded-xl border border-linea">
             {talleres.map((t) => (
               <TallerFila key={t.id} t={t} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="mt-12" aria-labelledby="servicios">
+        <h2 id="servicios" className="text-lg font-semibold">
+          Servicios firmados en el contrato
+        </h2>
+        <p className="mt-1 text-sm text-texto-2">
+          Anula un servicio con datos falsos o renueva la placa para que sus datos no se archiven en Stellar.
+        </p>
+        {expedientes.length === 0 ? (
+          <p className="mt-3 text-sm text-texto-2">Aún no hay servicios firmados en el contrato.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-linea rounded-xl border border-linea">
+            {expedientes.map((e) => (
+              <ExpedienteFila key={e.hash} e={e} />
             ))}
           </ul>
         )}
@@ -112,6 +136,34 @@ function TallerFila({ t }: { t: TallerAdmin }) {
         </p>
       </div>
       <TallerAcciones id={t.id} nombre={t.nombre} estado={t.estado} />
+    </li>
+  );
+}
+
+function ExpedienteFila({ e }: { e: ExpedienteAdmin }) {
+  return (
+    <li className="flex flex-col gap-3 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-mono font-semibold">{e.placa}</p>
+          {e.anulado ? (
+            <EstadoBadge tono="vencido">Anulado</EstadoBadge>
+          ) : (
+            <EstadoBadge tono={new Date(e.vigente_hasta).getTime() >= Date.now() ? "vigente" : "vencido"}>
+              {new Date(e.vigente_hasta).getTime() >= Date.now() ? "Vigente" : "Vencido"}
+            </EstadoBadge>
+          )}
+        </div>
+        <p className="text-texto-2">
+          {e.tipo} · {formatFecha(e.fecha)} · {e.taller ?? "sin taller"}
+        </p>
+        <p className="truncate text-texto-2">
+          <span className="font-mono">{abreviar(e.hash)}</span>
+          {e.anulado && <> · {e.anulado.motivo}</>}
+          {e.anulado === null && <> · sin respuesta de Stellar</>}
+        </p>
+      </div>
+      <ExpedienteAcciones hash={e.hash} placa={e.placa} anulado={Boolean(e.anulado)} />
     </li>
   );
 }
