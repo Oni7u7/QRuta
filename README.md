@@ -82,6 +82,24 @@ unset STELLAR_ACCOUNT
 
 El comando imprime el ID del contrato (`C…`): ese es `QRUTA_CONTRACT_ID`.
 
+Funciones del contrato (v0.3):
+
+| Función | Firma | Qué hace |
+|---|---|---|
+| `aprobar_taller` / `suspender_taller` | admin | KYB on-chain del taller |
+| `registrar` | taller | Guarda la huella de un expediente y actualiza el estado de la placa |
+| `registrar_lote` | taller | Hasta 10 expedientes en una transacción; si uno falla no se guarda ninguno |
+| `corregir_expediente` | taller | Sustituye un expediente suyo y deja el anterior anulado con motivo |
+| `anular_expediente` | admin | Anula un expediente (se conserva como evidencia) |
+| `renovar` | cualquiera | Extiende el TTL de la placa hasta que vence su servicio |
+| `reportar_falla` | pasajero | Un reporte por pasajero, placa y día; con 3 la unidad queda en revisión |
+| `atender_reporte` | taller | Cierra la revisión con un servicio suyo posterior al primer reporte |
+| `cofirmar_expediente` | otro taller | Aval de un segundo taller aprobado, una sola vez |
+| `transferir_unidad` | taller responsable | Pasa la custodia de la placa a otro taller aprobado |
+| `estado`, `expediente`, `revision`, `cofirma`, `custodio`, `anulacion`, `correccion` | lectura | Consultas gratuitas |
+
+Para actualizar el contrato desplegado y probar las funciones v3 en testnet: `bash scripts/contrato-v3-testnet.sh`.
+
 ### 5. Variables de entorno
 
 Copia `.env.example` a `.env.local` y complétalo:
