@@ -128,6 +128,20 @@ Funciones del contrato (v0.5):
 
 Para actualizar el contrato desplegado y probar en testnet las funciones de cada versión: `bash scripts/contrato-v3-testnet.sh`, `bash scripts/contrato-v4-testnet.sh` y `bash scripts/contrato-v5-testnet.sh`.
 
+### Contrato `qruta-flota` (socios propietarios)
+
+`CDOVCMENU2RJAERXTZLYYGOLRHLBMUE6T3AUUT6NRLKNJFMFWUVFIGAI` ([Stellar Expert](https://stellar.expert/explorer/testnet/contract/CDOVCMENU2RJAERXTZLYYGOLRHLBMUE6T3AUUT6NRLKNJFMFWUVFIGAI)). Consulta al registro antes de actuar: una unidad vencida no entra a ruta, una unidad en revisión no arranca jornada y los pagos y garantías van al taller que firmó el expediente.
+
+| Grupo | Funciones |
+|---|---|
+| Socios y unidades | `registrar_socio`, `alta_unidad`, `baja_unidad_flota`, `transferir_propiedad` |
+| Rutas y jornadas | `crear_ruta`, `asignar_ruta`, `desasignar_ruta`, `cerrar_ruta`, `iniciar_jornada`, `terminar_jornada` |
+| Fondo de mantenimiento (XLM) | `depositar_fondo`, `pagar_servicio`, `retirar_fondo` |
+| Garantías | `emitir_garantia`, `reclamar_garantia`, `resolver_garantia` |
+| Calificaciones y multas | `calificar_taller`, `registrar_multa`, `pagar_multa`, `cancelar_multa` |
+
+Desplegarlo y usar cada función en testnet: `bash scripts/flota-testnet.sh`.
+
 ### 5. Variables de entorno
 
 Copia `.env.example` a `.env.local` y complétalo:
