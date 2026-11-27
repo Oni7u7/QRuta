@@ -6,6 +6,19 @@ Expediente de mantenimiento verificable para unidades de transporte (microbús).
 - Red: **Stellar testnet** (los registros son de demostración, sin validez legal)
 - Contrato `qruta-registry`: `CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH` ([Stellar Expert](https://stellar.expert/explorer/testnet/contract/CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH))
 - Checklist del demo: [`docs/DEMO.md`](docs/DEMO.md)
+- **Video demo:** https://youtu.be/xu2S-hPWIq4
+- Versión actual: **v1.0.0** (contrato `qruta-registry` v0.5.0) · [notas de la versión](docs/release-v1.0.0.md)
+
+## Cómo se usa
+
+| Quién | Dónde | Qué hace |
+|---|---|---|
+| **Taller** | [`/registro-taller`](https://qruta.vercel.app/registro-taller) y luego [`/taller`](https://qruta.vercel.app/taller) | Pide su alta, conecta Freighter y registra cada servicio (placa, tipo, fecha, kilometraje, checklist); lo firma con su wallet |
+| **Admin de QRuta** | [`/admin`](https://qruta.vercel.app/admin) | Revisa las solicitudes de alta, aprueba o suspende talleres en el contrato |
+| **Unidad** | [`/pantalla?p=PLACA`](https://qruta.vercel.app/pantalla?p=REC345) | Muestra el QR que cambia cada 15 s |
+| **Pasajero o inspector** | Escanea el QR (abre `/verificar`) | Ve al instante si el mantenimiento está vigente y si el expediente coincide con su huella en Stellar |
+
+Prueba rápida sin cuenta: abre la [pantalla de la unidad REC345](https://qruta.vercel.app/pantalla?p=REC345) y escanea el QR con el celular.
 
 ## Cómo funciona
 
