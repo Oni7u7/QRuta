@@ -41,6 +41,14 @@ const ERRORES_CONTRATO: Record<number, string> = {
   10: "El motivo debe tener entre 3 y 200 caracteres.",
   11: "Solo el taller que firmó el expediente puede corregirlo.",
   12: "Este expediente ya fue corregido.",
+  13: "Ya reportaste esta unidad hoy.",
+  14: "Esta unidad no tiene reportes pendientes.",
+  15: "El expediente es de otra placa.",
+  16: "El servicio debe ser posterior al primer reporte.",
+  17: "Un taller no puede hacer esto sobre su propio expediente o consigo mismo.",
+  18: "Este expediente ya tiene el aval de otro taller.",
+  19: "Solo el taller responsable de la unidad puede transferirla.",
+  20: "El lote debe tener entre 1 y 10 expedientes.",
 };
 
 export class SorobanError extends Error {
