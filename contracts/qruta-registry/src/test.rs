@@ -695,3 +695,162 @@ fn el_lote_no_puede_ir_vacio_ni_pasar_de_10() {
     }
     assert_eq!(p.client.try_registrar_lote(&p.taller, &grande), Err(Ok(Error::LoteInvalido)));
 }
+
+// ── v4: baja, reactivación y apelaciones ──
+
+#[test]
+fn el_taller_responsable_da_de_baja_y_la_unidad_deja_de_estar_vigente() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    assert!(p.client.estado(&pl).unwrap().vigente);
+
+    p.client.dar_de_baja(&p.taller, &pl, &motivo(&p.env, "Siniestro total"));
+    let auths = p.env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, p.taller);
+
+    assert_eq!(p.client.baja(&pl).unwrap().por, p.taller);
+    assert!(!p.client.estado(&pl).unwrap().vigente);
+    assert_eq!(p.client.try_dar_de_baja(&p.admin, &pl, &motivo(&p.env, "Otra vez")), Err(Ok(Error::UnidadDeBaja)));
+}
+
+#[test]
+fn una_unidad_de_baja_no_registra_renueva_ni_recibe_reportes() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    p.client.dar_de_baja(&p.admin, &pl, &motivo(&p.env, "Fin de concesión"));
+
+    let r = p.client.try_registrar(&p.taller, &pl, &hash(&p.env, 2), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(r, Err(Ok(Error::UnidadDeBaja)));
+    assert_eq!(p.client.try_renovar(&pl), Err(Ok(Error::UnidadDeBaja)));
+    assert_eq!(p.client.try_reportar_falla(&Address::generate(&p.env), &pl, &hash(&p.env, 50)), Err(Ok(Error::UnidadDeBaja)));
+    let lote = soroban_sdk::vec![&p.env, exp_lote(&p.env, "ABC123", 30)];
+    assert_eq!(p.client.try_registrar_lote(&p.taller, &lote), Err(Ok(Error::UnidadDeBaja)));
+}
+
+#[test]
+fn dar_de_baja_valida_quien_placa_y_motivo() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let extrano = Address::generate(&p.env);
+    assert_eq!(p.client.try_dar_de_baja(&extrano, &pl, &motivo(&p.env, "No soy nadie")), Err(Ok(Error::NoAutorizado)));
+    assert_eq!(p.client.try_dar_de_baja(&p.taller, &pl, &motivo(&p.env, "x")), Err(Ok(Error::MotivoInvalido)));
+    assert_eq!(
+        p.client.try_dar_de_baja(&p.admin, &placa(&p.env, "ZZZ999"), &motivo(&p.env, "Sin registro")),
+        Err(Ok(Error::PlacaSinRegistro))
+    );
+    // Tras transferirla, el taller anterior ya no puede darla de baja.
+    let nuevo = Address::generate(&p.env);
+    p.client.aprobar_taller(&nuevo);
+    p.client.transferir_unidad(&p.taller, &pl, &nuevo);
+    assert_eq!(p.client.try_dar_de_baja(&p.taller, &pl, &motivo(&p.env, "Ya no es mía")), Err(Ok(Error::NoAutorizado)));
+    p.client.dar_de_baja(&nuevo, &pl, &motivo(&p.env, "Siniestro"));
+}
+
+#[test]
+fn el_admin_reactiva_la_unidad() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    assert_eq!(p.client.try_reactivar_unidad(&pl), Err(Ok(Error::NoEstaDeBaja)));
+    p.client.dar_de_baja(&p.taller, &pl, &motivo(&p.env, "Taller cerrado"));
+    p.client.reactivar_unidad(&pl);
+    assert_eq!(p.env.auths()[0].0, p.admin);
+    assert_eq!(p.client.baja(&pl), None);
+    assert!(p.client.estado(&pl).unwrap().vigente);
+    p.client.renovar(&pl);
+}
+
+#[test]
+fn solo_el_admin_reactiva() {
+    let env = Env::default();
+    env.ledger().set_timestamp(FECHA + DIA);
+    let admin = Address::generate(&env);
+    let id = env.register(QrutaRegistry, (&admin,));
+    let client = QrutaRegistryClient::new(&env, &id);
+    let pl = placa(&env, "ABC123");
+    // Nadie firma como admin: se rechaza.
+    assert!(client.try_reactivar_unidad(&pl).is_err());
+}
+
+fn anulado(p: &Prueba) -> BytesN<32> {
+    con_unidad(p);
+    let h = hash(&p.env, 1);
+    p.client.anular_expediente(&h, &motivo(&p.env, "Datos dudosos"));
+    h
+}
+
+#[test]
+fn apelacion_aceptada_devuelve_el_estado_de_la_placa() {
+    let p = preparar();
+    let h = anulado(&p);
+    let pl = placa(&p.env, "ABC123");
+    assert_eq!(p.client.estado(&pl), None);
+
+    p.client.apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Tengo la factura del servicio"));
+    assert_eq!(p.env.auths()[0].0, p.taller);
+    assert!(!p.client.apelacion(&h).unwrap().resuelta);
+
+    p.client.resolver_apelacion(&h, &true);
+    assert_eq!(p.env.auths()[0].0, p.admin);
+    let a = p.client.apelacion(&h).unwrap();
+    assert!(a.resuelta && a.aceptada);
+    assert_eq!(p.client.anulacion(&h), None);
+    assert_eq!(p.client.estado(&pl).unwrap().hash, h);
+    // Ya resuelta: no se resuelve otra vez ni se apela de nuevo.
+    assert_eq!(p.client.try_resolver_apelacion(&h, &false), Err(Ok(Error::SinApelacion)));
+}
+
+#[test]
+fn apelacion_rechazada_mantiene_la_anulacion() {
+    let p = preparar();
+    let h = anulado(&p);
+    p.client.apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Fue un error"));
+    p.client.resolver_apelacion(&h, &false);
+    let a = p.client.apelacion(&h).unwrap();
+    assert!(a.resuelta && !a.aceptada);
+    assert!(p.client.anulacion(&h).is_some());
+    assert_eq!(p.client.estado(&placa(&p.env, "ABC123")), None);
+    assert_eq!(p.client.try_apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Otra vez")), Err(Ok(Error::YaApelado)));
+}
+
+#[test]
+fn aceptar_una_apelacion_no_desplaza_un_servicio_mas_nuevo() {
+    let p = preparar();
+    let h = anulado(&p);
+    let pl = placa(&p.env, "ABC123");
+    let nuevo = hash(&p.env, 2);
+    p.client.registrar(&p.taller, &pl, &nuevo, &tipo(&p.env, "preventivo"), &(FECHA + DIA), &(FECHA + 91 * DIA));
+    p.client.apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Fue un error"));
+    p.client.resolver_apelacion(&h, &true);
+    assert_eq!(p.client.estado(&pl).unwrap().hash, nuevo);
+}
+
+#[test]
+fn apelar_valida_taller_anulacion_y_correccion() {
+    let p = preparar();
+    con_unidad(&p);
+    let h = hash(&p.env, 1);
+    // No está anulado.
+    assert_eq!(p.client.try_apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Sin razón")), Err(Ok(Error::NoEstaAnulado)));
+    // Otro taller no apela lo ajeno.
+    p.client.anular_expediente(&h, &motivo(&p.env, "Datos dudosos"));
+    let otro = Address::generate(&p.env);
+    p.client.aprobar_taller(&otro);
+    assert_eq!(p.client.try_apelar_anulacion(&otro, &h, &motivo(&p.env, "No es mío")), Err(Ok(Error::NoEsDelTaller)));
+    assert_eq!(p.client.try_apelar_anulacion(&p.taller, &h, &motivo(&p.env, "x")), Err(Ok(Error::MotivoInvalido)));
+    assert_eq!(p.client.try_apelar_anulacion(&p.taller, &hash(&p.env, 9), &motivo(&p.env, "No existe")), Err(Ok(Error::ExpedienteNoExiste)));
+    assert_eq!(p.client.try_resolver_apelacion(&h, &true), Err(Ok(Error::SinApelacion)));
+
+    // Lo que el taller corrigió no se apela.
+    let pl = placa(&p.env, "XYZ789");
+    p.client.registrar(&p.taller, &pl, &hash(&p.env, 3), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    p.client.corregir_expediente(&p.taller, &hash(&p.env, 3), &hash(&p.env, 4), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA), &motivo(&p.env, "Kilometraje"));
+    assert_eq!(
+        p.client.try_apelar_anulacion(&p.taller, &hash(&p.env, 3), &motivo(&p.env, "Me arrepentí")),
+        Err(Ok(Error::ExpedienteYaCorregido))
+    );
+
+    // Un taller suspendido no apela.
+    p.client.suspender_taller(&p.taller);
+    assert_eq!(p.client.try_apelar_anulacion(&p.taller, &h, &motivo(&p.env, "Suspendido")), Err(Ok(Error::TallerNoAprobado)));
+}
