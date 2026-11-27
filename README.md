@@ -82,7 +82,7 @@ unset STELLAR_ACCOUNT
 
 El comando imprime el ID del contrato (`C…`): ese es `QRUTA_CONTRACT_ID`.
 
-Funciones del contrato (v0.3):
+Funciones del contrato (v0.4):
 
 | Función | Firma | Qué hace |
 |---|---|---|
@@ -96,9 +96,13 @@ Funciones del contrato (v0.3):
 | `atender_reporte` | taller | Cierra la revisión con un servicio suyo posterior al primer reporte |
 | `cofirmar_expediente` | otro taller | Aval de un segundo taller aprobado, una sola vez |
 | `transferir_unidad` | taller responsable | Pasa la custodia de la placa a otro taller aprobado |
-| `estado`, `expediente`, `revision`, `cofirma`, `custodio`, `anulacion`, `correccion` | lectura | Consultas gratuitas |
+| `dar_de_baja` | admin o taller responsable | Retira la unidad: deja de estar vigente y no admite servicios, renovaciones ni reportes |
+| `reactivar_unidad` | admin | Regresa a circulación una unidad dada de baja |
+| `apelar_anulacion` | taller | Impugna, una sola vez, la anulación de un expediente suyo (no las de corrección) |
+| `resolver_apelacion` | admin | Acepta (quita la anulación y recupera el estado de la placa) o rechaza la apelación |
+| `estado`, `expediente`, `revision`, `cofirma`, `custodio`, `baja`, `apelacion`, `anulacion`, `correccion` | lectura | Consultas gratuitas |
 
-Para actualizar el contrato desplegado y probar las funciones v3 en testnet: `bash scripts/contrato-v3-testnet.sh`.
+Para actualizar el contrato desplegado y probar en testnet las funciones de cada versión: `bash scripts/contrato-v3-testnet.sh` y `bash scripts/contrato-v4-testnet.sh`.
 
 ### 5. Variables de entorno
 
