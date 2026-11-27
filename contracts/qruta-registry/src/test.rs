@@ -493,3 +493,205 @@ fn no_se_corrige_un_expediente_anulado_ni_con_taller_suspendido() {
     );
     assert_eq!(p.client.correccion(&vigente), None);
 }
+
+// ── v3: reportes, cofirma, custodia y lote ──
+
+fn con_unidad(p: &Prueba) -> String {
+    p.client.aprobar_taller(&p.taller);
+    let pl = placa(&p.env, "ABC123");
+    p.client.registrar(&p.taller, &pl, &hash(&p.env, 1), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    pl
+}
+
+#[test]
+fn tres_reportes_ponen_la_unidad_en_revision() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let ev = hash(&p.env, 50);
+    for i in 1..=3u32 {
+        let pasajero = Address::generate(&p.env);
+        assert_eq!(p.client.reportar_falla(&pasajero, &pl, &ev), i);
+        assert_eq!(p.client.revision(&pl).unwrap().en_revision, i >= 3);
+    }
+    assert_eq!(p.client.revision(&pl).unwrap().reportes, 3);
+}
+
+#[test]
+fn reportar_exige_firma_del_pasajero() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let pasajero = Address::generate(&p.env);
+    p.client.reportar_falla(&pasajero, &pl, &hash(&p.env, 50));
+    let auths = p.env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, pasajero);
+}
+
+#[test]
+fn un_reporte_por_pasajero_y_dia() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    let pasajero = Address::generate(&p.env);
+    p.client.reportar_falla(&pasajero, &pl, &hash(&p.env, 50));
+    assert_eq!(p.client.try_reportar_falla(&pasajero, &pl, &hash(&p.env, 51)), Err(Ok(Error::ReporteRepetido)));
+    // Al día siguiente sí cuenta.
+    p.env.ledger().set_timestamp(FECHA + 2 * DIA);
+    assert_eq!(p.client.reportar_falla(&pasajero, &pl, &hash(&p.env, 51)), 2);
+}
+
+#[test]
+fn no_se_reporta_una_placa_sin_registro() {
+    let p = preparar();
+    let r = p.client.try_reportar_falla(&Address::generate(&p.env), &placa(&p.env, "ZZZ999"), &hash(&p.env, 50));
+    assert_eq!(r, Err(Ok(Error::PlacaSinRegistro)));
+}
+
+#[test]
+fn el_taller_atiende_con_un_servicio_nuevo() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    for _ in 0..3 {
+        p.client.reportar_falla(&Address::generate(&p.env), &pl, &hash(&p.env, 50));
+    }
+    // El servicio de antes de los reportes no sirve.
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &hash(&p.env, 1)), Err(Ok(Error::ExpedienteAnterior)));
+
+    p.env.ledger().set_sequence_number(p.env.ledger().sequence() + 10);
+    let nuevo = hash(&p.env, 2);
+    p.client.registrar(&p.taller, &pl, &nuevo, &tipo(&p.env, "correctivo"), &(FECHA + DIA), &(FECHA + 31 * DIA));
+    p.client.atender_reporte(&p.taller, &pl, &nuevo);
+    assert_eq!(p.client.revision(&pl), None);
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &nuevo), Err(Ok(Error::SinReportes)));
+}
+
+#[test]
+fn atender_valida_placa_taller_y_anulacion() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    p.client.reportar_falla(&Address::generate(&p.env), &pl, &hash(&p.env, 50));
+
+    // Expediente de otra placa.
+    p.client.registrar(&p.taller, &placa(&p.env, "OTRA1"), &hash(&p.env, 3), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &hash(&p.env, 3)), Err(Ok(Error::ExpedienteDeOtraPlaca)));
+
+    // Expediente de otro taller.
+    let otro = Address::generate(&p.env);
+    p.client.aprobar_taller(&otro);
+    p.client.registrar(&otro, &pl, &hash(&p.env, 4), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &hash(&p.env, 4)), Err(Ok(Error::NoEsDelTaller)));
+
+    // Expediente anulado.
+    p.client.registrar(&p.taller, &pl, &hash(&p.env, 5), &tipo(&p.env, "preventivo"), &FECHA, &(FECHA + 90 * DIA));
+    p.client.anular_expediente(&hash(&p.env, 5), &motivo(&p.env, "Datos falsos"));
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &hash(&p.env, 5)), Err(Ok(Error::ExpedienteAnulado)));
+
+    // Taller suspendido.
+    p.client.suspender_taller(&p.taller);
+    assert_eq!(p.client.try_atender_reporte(&p.taller, &pl, &hash(&p.env, 1)), Err(Ok(Error::TallerNoAprobado)));
+}
+
+#[test]
+fn otro_taller_cofirma_una_sola_vez() {
+    let p = preparar();
+    con_unidad(&p);
+    let h = hash(&p.env, 1);
+    let inspector = Address::generate(&p.env);
+
+    // Sin aprobar no puede.
+    assert_eq!(p.client.try_cofirmar_expediente(&inspector, &h), Err(Ok(Error::TallerNoAprobado)));
+    p.client.aprobar_taller(&inspector);
+    // El mismo taller no se avala a sí mismo.
+    assert_eq!(p.client.try_cofirmar_expediente(&p.taller, &h), Err(Ok(Error::MismoTaller)));
+
+    p.client.cofirmar_expediente(&inspector, &h);
+    assert_eq!(p.client.cofirma(&h).unwrap().inspector, inspector);
+    assert_eq!(p.client.try_cofirmar_expediente(&inspector, &h), Err(Ok(Error::YaCofirmado)));
+    assert_eq!(p.client.try_cofirmar_expediente(&inspector, &hash(&p.env, 9)), Err(Ok(Error::ExpedienteNoExiste)));
+}
+
+#[test]
+fn no_se_cofirma_un_expediente_anulado() {
+    let p = preparar();
+    con_unidad(&p);
+    let inspector = Address::generate(&p.env);
+    p.client.aprobar_taller(&inspector);
+    p.client.anular_expediente(&hash(&p.env, 1), &motivo(&p.env, "Datos falsos"));
+    assert_eq!(p.client.try_cofirmar_expediente(&inspector, &hash(&p.env, 1)), Err(Ok(Error::ExpedienteAnulado)));
+}
+
+#[test]
+fn el_custodio_transfiere_la_unidad() {
+    let p = preparar();
+    let pl = con_unidad(&p);
+    assert_eq!(p.client.custodio(&pl), Some(p.taller.clone()));
+
+    let nuevo = Address::generate(&p.env);
+    assert_eq!(p.client.try_transferir_unidad(&p.taller, &pl, &nuevo), Err(Ok(Error::TallerNoAprobado)));
+    p.client.aprobar_taller(&nuevo);
+    assert_eq!(p.client.try_transferir_unidad(&p.taller, &pl, &p.taller), Err(Ok(Error::MismoTaller)));
+
+    p.client.transferir_unidad(&p.taller, &pl, &nuevo);
+    assert_eq!(p.client.custodio(&pl), Some(nuevo.clone()));
+    // El anterior ya no puede transferirla.
+    assert_eq!(p.client.try_transferir_unidad(&p.taller, &pl, &nuevo), Err(Ok(Error::NoEsCustodio)));
+    // El nuevo sí.
+    p.client.transferir_unidad(&nuevo, &pl, &p.taller);
+    assert_eq!(p.client.custodio(&pl), Some(p.taller.clone()));
+}
+
+#[test]
+fn transferir_una_placa_sin_registro_falla() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let r = p.client.try_transferir_unidad(&p.taller, &placa(&p.env, "ZZZ999"), &Address::generate(&p.env));
+    assert_eq!(r, Err(Ok(Error::PlacaSinRegistro)));
+}
+
+fn exp_lote(env: &Env, pl: &str, n: u8) -> ExpedienteLote {
+    ExpedienteLote { placa: placa(env, pl), hash: hash(env, n), tipo: tipo(env, "preventivo"), fecha: FECHA, vigente_hasta: FECHA + 90 * DIA }
+}
+
+#[test]
+fn registrar_lote_guarda_todos() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let lote = soroban_sdk::vec![&p.env, exp_lote(&p.env, "LOTE1", 11), exp_lote(&p.env, "LOTE2", 12), exp_lote(&p.env, "LOTE3", 13)];
+    assert_eq!(p.client.registrar_lote(&p.taller, &lote), 3);
+    // Una sola firma, la del taller, para todo el lote.
+    let auths = p.env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, p.taller);
+    for (pl, n) in [("LOTE1", 11), ("LOTE2", 12), ("LOTE3", 13)] {
+        assert_eq!(p.client.estado(&placa(&p.env, pl)).unwrap().hash, hash(&p.env, n));
+    }
+}
+
+#[test]
+fn si_uno_del_lote_falla_no_se_guarda_ninguno() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let mut malo = exp_lote(&p.env, "LOTE2", 12);
+    malo.tipo = tipo(&p.env, "inventado");
+    let lote = soroban_sdk::vec![&p.env, exp_lote(&p.env, "LOTE1", 11), malo];
+    assert_eq!(p.client.try_registrar_lote(&p.taller, &lote), Err(Ok(Error::TipoInvalido)));
+    assert_eq!(p.client.expediente(&hash(&p.env, 11)), None);
+    assert_eq!(p.client.estado(&placa(&p.env, "LOTE1")), None);
+
+    // Hash repetido dentro del mismo lote.
+    let rep = soroban_sdk::vec![&p.env, exp_lote(&p.env, "LOTE1", 11), exp_lote(&p.env, "LOTE2", 11)];
+    assert_eq!(p.client.try_registrar_lote(&p.taller, &rep), Err(Ok(Error::ExpedienteDuplicado)));
+    assert_eq!(p.client.expediente(&hash(&p.env, 11)), None);
+}
+
+#[test]
+fn el_lote_no_puede_ir_vacio_ni_pasar_de_10() {
+    let p = preparar();
+    p.client.aprobar_taller(&p.taller);
+    let vacio: Vec<ExpedienteLote> = Vec::new(&p.env);
+    assert_eq!(p.client.try_registrar_lote(&p.taller, &vacio), Err(Ok(Error::LoteInvalido)));
+    let mut grande = Vec::new(&p.env);
+    for n in 0..11u8 {
+        grande.push_back(exp_lote(&p.env, "LOTE1", 100 + n));
+    }
+    assert_eq!(p.client.try_registrar_lote(&p.taller, &grande), Err(Ok(Error::LoteInvalido)));
+}
