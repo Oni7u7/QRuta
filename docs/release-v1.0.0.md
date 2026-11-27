@@ -3,7 +3,7 @@
 Primera versión publicada de QRuta: el expediente de mantenimiento verificable para el transporte público de la CDMX, con su huella en Stellar y un QR que cambia cada 15 segundos.
 
 - App: https://qruta.vercel.app
-- Video demo: https://youtu.be/xu2S-hPWIq4
+- Video demo: https://youtu.be/aZuqKICcNHA?si=FwicZM-iVj0jFzsV
 - Contrato `qruta-registry` (testnet): [`CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH`](https://stellar.expert/explorer/testnet/contract/CASN45DQAPXFABBKOFRJMFTWTTD6LP6AUSCXIOL3GVVPU6WSSRWLWCSH)
 
 ## Qué incluye
