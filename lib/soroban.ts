@@ -49,6 +49,12 @@ const ERRORES_CONTRATO: Record<number, string> = {
   18: "Este expediente ya tiene el aval de otro taller.",
   19: "Solo el taller responsable de la unidad puede transferirla.",
   20: "El lote debe tener entre 1 y 10 expedientes.",
+  21: "Solo el admin o el taller responsable pueden dar de baja la unidad.",
+  22: "Esta unidad está dada de baja.",
+  23: "Esta unidad no está dada de baja.",
+  24: "Este expediente no está anulado.",
+  25: "Este expediente ya fue apelado.",
+  26: "No hay una apelación abierta para este expediente.",
 };
 
 export class SorobanError extends Error {
