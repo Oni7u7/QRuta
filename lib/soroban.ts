@@ -265,18 +265,23 @@ function adminKeypair() {
   return Keypair.fromSecret(secret);
 }
 
-async function invocarComoAdmin(fn: "aprobar_taller" | "suspender_taller", direccion: string): Promise<string> {
+type FuncionAdmin = "aprobar_taller" | "suspender_taller" | "anular_expediente" | "renovar";
+
+async function invocarComoAdmin(fn: FuncionAdmin, ...args: xdr.ScVal[]): Promise<string> {
   const admin = adminKeypair();
   const cuenta = await servidor().getAccount(admin.publicKey());
   const tx = new TransactionBuilder(cuenta, { fee: "100", networkPassphrase: PASSPHRASE })
-    .addOperation(new Contract(contractId()).call(fn, new Address(direccion).toScVal()))
+    .addOperation(new Contract(contractId()).call(fn, ...args))
     .setTimeout(60)
     .build();
   let preparada: Transaction;
   try {
     preparada = await servidor().prepareTransaction(tx);
   } catch (err) {
-    console.error(`Simulación de ${fn} falló:`, err instanceof Error ? err.message.slice(0, 200) : err);
+    const detalle = err instanceof Error ? err.message : String(err);
+    const amigable = errorDeContrato(detalle);
+    if (amigable) throw new SorobanError(amigable, 409);
+    console.error(`Simulación de ${fn} falló:`, detalle.slice(0, 200));
     throw new SorobanError("No se pudo preparar la operación en el contrato. Intenta de nuevo.", 502);
   }
   preparada.sign(admin);
@@ -285,10 +290,35 @@ async function invocarComoAdmin(fn: "aprobar_taller" | "suspender_taller", direc
 
 // Aprueba una wallet de taller en el contrato. Idempotente: aprobar dos veces no cambia nada.
 export function aprobarTallerOnChain(direccion: string) {
-  return invocarComoAdmin("aprobar_taller", direccion);
+  return invocarComoAdmin("aprobar_taller", new Address(direccion).toScVal());
 }
 
 // Suspende una wallet: ya no puede firmar expedientes nuevos; los anteriores siguen válidos.
 export function suspenderTallerOnChain(direccion: string) {
-  return invocarComoAdmin("suspender_taller", direccion);
+  return invocarComoAdmin("suspender_taller", new Address(direccion).toScVal());
+}
+
+// ── Control de expedientes (firma la cuenta admin, desde el servidor) ──
+
+// Anula un expediente en el contrato (por ejemplo, datos falsos). El registro se conserva como evidencia
+// y, si era el estado de la placa, la placa queda sin servicio vigente.
+export function anularExpedienteOnChain(hashHex: string, motivo: string) {
+  return invocarComoAdmin(
+    "anular_expediente",
+    xdr.ScVal.scvBytes(Buffer.from(hashHex, "hex")),
+    nativeToScVal(motivo, { type: "string" }),
+  );
+}
+
+// Extiende el TTL de la placa en el contrato para que sus datos no se archiven antes de que venza el servicio.
+export function renovarOnChain(placa: string) {
+  return invocarComoAdmin("renovar", nativeToScVal(placa, { type: "string" }));
+}
+
+export type AnulacionOnChain = { motivo: string; ledger: number };
+
+export async function anulacionOnChain(hashHex: string): Promise<AnulacionOnChain | null> {
+  const r = await leer("anulacion", xdr.ScVal.scvBytes(Buffer.from(hashHex, "hex")));
+  if (!r) return null;
+  return { motivo: String(r.motivo), ledger: Number(r.ledger) };
 }
