@@ -154,6 +154,19 @@ Ligado a `qruta-registry` y a `qruta-flota`: solo el dueño de la unidad pide y 
 
 Desplegarlo y usar cada función en testnet: `bash scripts/taller-testnet.sh`.
 
+### Contrato `qruta-seguro` (pólizas para las unidades)
+
+Ligado a `qruta-registry` y a `qruta-flota`: solo el dueño de una unidad vigente contrata o renueva, la prima va a una reserva que nunca queda por debajo de lo aprobado, la cobertura es 10 veces la prima y una unidad que pierde su servicio en el registro pierde la póliza.
+
+| Grupo | Funciones |
+|---|---|
+| Pólizas | `contratar_poliza`, `renovar_poliza`, `cancelar_poliza`, `transferir_poliza`, `vencer_poliza`, `fijar_deducible` |
+| Reserva | `fondear_reserva`, `retirar_reserva`, `bonificar_buen_historial` |
+| Siniestros | `reportar_siniestro`, `evaluar_siniestro`, `anticipar_pago`, `pagar_siniestro`, `apelar_siniestro`, `desistir_siniestro`, `devolver_excedente` |
+| Controles | `suspender_poliza`, `reactivar_poliza`, `marcar_fraude`, `levantar_veto` |
+
+Desplegarlo y usar cada función en testnet: `bash scripts/seguro-testnet.sh`.
+
 ### 5. Variables de entorno
 
 Copia `.env.example` a `.env.local` y complétalo:
