@@ -142,6 +142,18 @@ Para actualizar el contrato desplegado y probar en testnet las funciones de cada
 
 Desplegarlo y usar cada función en testnet: `bash scripts/flota-testnet.sh`.
 
+### Contrato `qruta-taller` (órdenes, refacciones y mecánicos)
+
+Ligado a `qruta-registry` y a `qruta-flota`: solo el dueño de la unidad pide y paga una orden, el pago queda retenido en el contrato hasta que acepta la entrega, el taller entrega con un expediente nuevo del registro firmado por él, y una refacción solo la instala un mecánico certificado en ese tipo de pieza.
+
+| Grupo | Funciones |
+|---|---|
+| Órdenes de trabajo | `solicitar_cotizacion`, `cotizar`, `rechazar_cotizacion`, `aceptar_cotizacion`, `iniciar_trabajo`, `entregar_trabajo`, `confirmar_entrega`, `disputar_orden`, `resolver_disputa`, `cancelar_orden`, `reclamar_por_retraso`, `retirar_ganancias`, `calificar_orden` |
+| Refacciones | `registrar_pieza`, `instalar_pieza`, `retirar_pieza`, `transferir_pieza` |
+| Mecánicos | `alta_mecanico`, `certificar_mecanico`, `baja_mecanico` |
+
+Desplegarlo y usar cada función en testnet: `bash scripts/taller-testnet.sh`.
+
 ### 5. Variables de entorno
 
 Copia `.env.example` a `.env.local` y complétalo:
